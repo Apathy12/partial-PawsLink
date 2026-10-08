@@ -1,0 +1,59 @@
+:root {
+  --canvas: #ffffff;
+  --canvas-wash: color-mix(in srgb, #b7ff72 12%, #ffffff);
+  --ink: #18251d;
+  --ink-muted: color-mix(in srgb, #18251d 70%, #ffffff);
+  --line: color-mix(in srgb, #18251d 20%, #ffffff);
+  --brand: #18251d;
+  --brand-hover: color-mix(in srgb, #18251d 87%, #b7ff72);
+  --brand-mid: #18251d;
+  --brand-soft: color-mix(in srgb, #b7ff72 32%, #ffffff);
+  --lime: #b7ff72;
+  --focus: #b7ff72;
+  --danger: #18251d;
+  --warn: #18251d;
+  --on-brand: #ffffff;
+  --dark-ink: #18251d;
+  --header: #18251d;
+  --header-ink: #ffffff;
+  --header-muted: color-mix(in srgb, #b7ff72 55%, #ffffff);
+  --hero: #18251d;
+  --hero-ink: #ffffff;
+  --hero-muted: color-mix(in srgb, #b7ff72 35%, #ffffff);
+
+  --font-body: 'Source Sans 3', Arial, sans-serif;
+  --font-title: Georgia, 'Times New Roman', serif;
+  --font-mono: ui-monospace, SFMono-Regular, Consolas, monospace;
+  --text-title: 36px;
+  --line-title: 40px;
+  --text-section: 24px;
+  --line-section: 30px;
+  --text-body: 18px;
+  --line-body: 26px;
+  --text-meta: 14px;
+  --line-meta: 20px;
+  --text-button: 16px;
+  --shell-width: 1120px;
+  --form-width: 720px;
+  --radius: 14px;
+  --motion: 180ms ease;
+}
+
+:root[data-theme='dark'] {
+  --canvas: #101a13;
+  --canvas-wash: #1b2b20;
+  --ink: #f5faf3;
+  --ink-muted: #b7c9b7;
+  --line: #3b5340;
+  --brand: #b7ff72;
+  --brand-hover: #d5ffac;
+  --brand-mid: #b7ff72;
+  --brand-soft: #2a422e;
+  --danger: #f5faf3;
+  --warn: #f5faf3;
+  --on-brand: #18251d;
+  --header: #18251d;
+  --header-muted: #c6ddc0;
+  --hero: #263a2b;
+  --hero-muted: #d0e5cc;
+}
