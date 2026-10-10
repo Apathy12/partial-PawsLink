@@ -2,9 +2,8 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'rea
 import { NavLink } from 'react-router-dom'
 import QRCode from 'qrcode'
 import { BrowserMultiFormatReader } from '@zxing/browser'
-import { parseQrText } from './lib/format'
 import type { PublicListing } from './lib/types'
-import { ageLabel, sexLabel, speciesLabel } from './lib/format'
+import { ageLabel, assetUrl, parseQrText, sexLabel, speciesLabel } from './lib/format'
 
 export function Pill({ children, kind = '' }: { children: ReactNode; kind?: string }) {
   return <span className={'pill ' + (kind ? 'pill-' + kind : '')}>{children}</span>
@@ -65,7 +64,8 @@ export function Field({ label, hint, children }: { label: string; hint?: string;
 
 export function Photo({ url, name, className }: { url?: string | null; name: string; className?: string }) {
   const [failedUrl, setFailedUrl] = useState<string | null>(null)
-  if (url && failedUrl !== url) return <img src={url} alt={name} className={className} onError={() => setFailedUrl(url)} />
+  const imageUrl = url?.startsWith('/demo-pets/') ? assetUrl(url) : url
+  if (imageUrl && failedUrl !== imageUrl) return <img src={imageUrl} alt={name} className={className} onError={() => setFailedUrl(imageUrl)} />
   return <span className="photo-fallback">No photo</span>
 }
 

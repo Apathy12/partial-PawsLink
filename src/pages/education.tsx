@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { assetUrl } from '../lib/format'
 import type { PublicListing } from '../lib/types'
-import { ListingCard, Notice, PawMark } from '../ui'
+import { ListingCard, Notice } from '../ui'
 
 const whoRabies = 'https://www.who.int/health-topics/rabies/'
 const cdcDogs = 'https://www.cdc.gov/healthy-pets/about/dogs.html'
@@ -59,7 +59,7 @@ export function EducationHome({ publicView = false }: { publicView?: boolean } =
           <a className="btn btn-outline" href="#knowledge-check">Try a quick check</a>
         </div>
       </div>
-      <div className="education-hero-note"><PawMark /><p>Good care starts<br />with what we learn.</p></div>
+      <div className="education-hero-photo"><img src={assetUrl('/home-hero-pets.webp')} alt="Two cats and two dogs playing together in a garden" width="1122" height="1402" /></div>
     </section> : null}
 
     <aside className="bite-help" aria-labelledby="bite-help-title">
