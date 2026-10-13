@@ -1485,6 +1485,30 @@ async function main() {
     await rows('MFA-verified CAVD can check an account identity status', ID.cavd,
       `select public.identity_approved($1) as approved`, r => r[0]?.approved === true,
       [ID.owner]);
+    section('Temporary CAVD demo access');
+    await client.query(await readFile(join(root, 'supabase/migrations/0016_demo_cavd_password_only.sql'), 'utf8'));
+    const demoAccess = await act(ID.cavd, async () => {
+      await client.query(`select set_config('request.jwt.claims', '{"aal":"aal1","email":"cavd@demo.local"}', true)`);
+      return client.query('select public.is_cavd() as allowed, public.identity_approved($1) as approved', [ID.owner]);
+    });
+    if (demoAccess.rows[0]?.allowed === true && demoAccess.rows[0]?.approved === true)
+      ok('password-only CAVD can use the office during the demo');
+    else bad('password-only CAVD can use the office during the demo');
+    const otherCavdAccess = await act(ID.cavd, async () => {
+      await client.query(`select set_config('request.jwt.claims', '{"aal":"aal1","email":"staff@example.com"}', true)`);
+      return client.query('select public.is_cavd() as allowed');
+    });
+    if (otherCavdAccess.rows[0]?.allowed === false) ok('other CAVD accounts still need MFA');
+    else bad('other CAVD accounts still need MFA');
+    await rows('ordinary users do not gain CAVD access in demo mode', ID.other,
+      'select public.is_cavd() as allowed', r => r[0]?.allowed === false);
+    await client.query(await readFile(join(root, 'supabase/maintenance/restore_cavd_mfa.sql'), 'utf8'));
+    const restoredAccess = await act(ID.cavd, async () => {
+      await client.query(`select set_config('request.jwt.claims', '{"aal":"aal1","email":"cavd@demo.local"}', true)`);
+      return client.query('select public.is_cavd() as allowed');
+    });
+    if (restoredAccess.rows[0]?.allowed === false) ok('restoration requires CAVD MFA again');
+    else bad('restoration requires CAVD MFA again');
   } finally {
     await client.end().catch(() => {});
     await pg.stop().catch(() => {});

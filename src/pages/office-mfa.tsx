@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { appUrl } from '../lib/format'
-import { hasCavdMfa } from '../lib/mfa'
+import { hasCavdMfa, requiresCavdMfa } from '../lib/mfa'
 import { explain, supabase } from '../lib/supabase'
 import { Field, Notice } from '../ui'
 import { PublicFrame } from './public'
@@ -31,7 +31,7 @@ export function OfficeMfaPage() {
     return () => { active = false }
   }, [])
 
-  if (hasCavdMfa(session)) return <Navigate to="/office" replace />
+  if (!requiresCavdMfa(session) || hasCavdMfa(session)) return <Navigate to="/office" replace />
 
   async function startEnrollment() {
     setBusy(true); setError(null)

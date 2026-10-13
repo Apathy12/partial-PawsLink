@@ -25,6 +25,7 @@ Single responsive website. Mobile-first for owners and adopters (`/app`), clinic
    - `supabase/migrations/0013_match_only_applications.sql`
    - `supabase/migrations/0014_backend_security.sql`
    - `supabase/migrations/0015_identity_status_privacy.sql`
+   - `supabase/migrations/0016_demo_cavd_password_only.sql` (temporary demo mode)
 3. Copy `.env.example` to `.env.local` and paste **Project Settings → API**:
    - `VITE_SUPABASE_URL`
    - `VITE_SUPABASE_ANON_KEY`
@@ -53,7 +54,7 @@ Each demo account has a separate password stored as `DEMO_USER_PASSWORD`, `DEMO_
 | `vet@demo.local` | vet | `/vet` |
 | `cavd@demo.local` | cavd | `/office` |
 
-After migration 0014, the CAVD demo account first opens `/office/mfa` to enroll an authenticator app. Enter its current six-digit code to reach the office desk. Later logins require another code.
+During the demo, migration 0016 lets `cavd@demo.local` open `/office` after password sign-in without an authenticator code. Set `VITE_CAVD_DEMO_PASSWORD_ONLY=true` in local and GitHub Pages builds. Other CAVD accounts still require MFA. Restore the demo account's authenticator after the demo using [SECURITY.md](SECURITY.md).
 
 If you created the users by hand in Authentication instead of `npm run seed`, run `supabase/seed_roles.sql` in the SQL editor.
 
@@ -78,7 +79,8 @@ Selecting **Apply from this match** on a ranked result opens a questionnaire abo
 CAVD opens the application from **Office → Applications**, reads the answers, records a review stage and applicant-visible remarks, and may request an interview or additional requirements. The adopter sees those instructions in **My applications** and can reply. Final approval still requires the existing CAVD validation and ownership-transfer action. Earlier applications retain their original message and decision; a pending earlier request can be completed after finding that pet through matching. A request without answers cannot receive final approval. Migration 0013 enforces the matching path in the database.
 
 Migration 0014 adds the CAVD authenticator step, Storage pet-photo limits, an application quota, and append-only review history. Existing applications retain their decisions; their event timeline starts with changes made after 0014. See [SECURITY.md](SECURITY.md) for setup and recovery steps.
-Migration 0015 restricts direct identity-status lookups to the person concerned and MFA-verified CAVD staff.
+Migration 0015 restricts direct identity-status lookups to the person concerned and authorized CAVD staff.
+Migration 0016 temporarily allows only `cavd@demo.local` to work with a password-only session for the office demo. Re-enable the database and frontend MFA checks for that account after the demo.
 
 The public homepage at `/` keeps the “Good care. Safe records. Happier homes.” introduction and shows the same care guides, safety advice, quiz, and community actions without requiring an account. A cats-and-dogs photo replaces the decorative hero panel. The pet owner and found pet shortcuts appear after the awareness content; approved pet listings remain inside the signed-in adoption area.
 

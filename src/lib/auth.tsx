@@ -4,7 +4,7 @@ import type { Session } from '@supabase/supabase-js'
 import { explain, supabase, supabaseConfigured } from './supabase'
 import { appUrl, homeFor } from './format'
 import { needsProfileSetup } from './onboarding'
-import { hasCavdMfa } from './mfa'
+import { hasCavdMfa, requiresCavdMfa } from './mfa'
 import type { Profile, Role, VerificationRequest } from './types'
 
 type AuthValue = {
@@ -144,7 +144,7 @@ export function RequireAuth({ children, roles, allowUnverified = false, allowMfa
   if (roles && !roles.includes(profile.role)) {
     return <Navigate to={homeFor(profile.role)} replace />
   }
-  if (profile.role === 'cavd' && !allowMfaSetup && !hasCavdMfa(session)) {
+  if (profile.role === 'cavd' && !allowMfaSetup && requiresCavdMfa(session) && !hasCavdMfa(session)) {
     return <Navigate to="/office/mfa" replace />
   }
   if (needsProfileSetup(profile, session.user) && loc.pathname !== '/app/profile') {
