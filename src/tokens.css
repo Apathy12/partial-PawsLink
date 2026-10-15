@@ -1,13 +1,14 @@
 :root {
-  --canvas: #ffffff;
-  --canvas-wash: color-mix(in srgb, #b7ff72 12%, #ffffff);
+  --canvas: #fbf7e9;
+  --canvas-wash: #edf3dc;
+  --paper: #fffdf5;
   --ink: #18251d;
   --ink-muted: color-mix(in srgb, #18251d 70%, #ffffff);
-  --line: color-mix(in srgb, #18251d 20%, #ffffff);
+  --line: #cbd5bd;
   --brand: #18251d;
   --brand-hover: color-mix(in srgb, #18251d 87%, #b7ff72);
   --brand-mid: #18251d;
-  --brand-soft: color-mix(in srgb, #b7ff72 32%, #ffffff);
+  --brand-soft: #dceac9;
   --lime: #b7ff72;
   --focus: #b7ff72;
   --danger: #18251d;
@@ -18,11 +19,11 @@
   --header-ink: #ffffff;
   --header-muted: color-mix(in srgb, #b7ff72 55%, #ffffff);
   --hero: #18251d;
-  --hero-ink: #ffffff;
-  --hero-muted: color-mix(in srgb, #b7ff72 35%, #ffffff);
+  --hero-ink: #fff9e9;
+  --hero-muted: #d6e7d2;
 
   --font-body: 'Source Sans 3', Arial, sans-serif;
-  --font-title: Georgia, 'Times New Roman', serif;
+  --font-title: 'Fraunces', Georgia, serif;
   --font-mono: ui-monospace, SFMono-Regular, Consolas, monospace;
   --text-title: 36px;
   --line-title: 40px;
@@ -33,7 +34,7 @@
   --text-meta: 14px;
   --line-meta: 20px;
   --text-button: 16px;
-  --shell-width: 1120px;
+  --shell-width: 1240px;
   --form-width: 720px;
   --radius: 14px;
   --motion: 180ms ease;
@@ -42,6 +43,7 @@
 :root[data-theme='dark'] {
   --canvas: #101a13;
   --canvas-wash: #1b2b20;
+  --paper: #203126;
   --ink: #f5faf3;
   --ink-muted: #b7c9b7;
   --line: #3b5340;

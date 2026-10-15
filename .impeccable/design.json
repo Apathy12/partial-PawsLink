@@ -1,0 +1,357 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-15T05:21:35.204Z",
+  "title": "Design System: PawsLink",
+  "extensions": {
+    "colorMeta": {
+      "deep-green": {
+        "role": "primary",
+        "displayName": "Shelter Green",
+        "canonical": "#18251d",
+        "tonalRamp": [
+          "oklch(15% 0.065 145)",
+          "oklch(27% 0.065 145)",
+          "oklch(39% 0.065 145)",
+          "oklch(51% 0.065 145)",
+          "oklch(63% 0.065 145)",
+          "oklch(75% 0.065 145)",
+          "oklch(86% 0.065 145)",
+          "oklch(95% 0.065 145)"
+        ]
+      },
+      "lime": {
+        "role": "primary",
+        "displayName": "Action Lime",
+        "canonical": "#b7ff72",
+        "tonalRamp": [
+          "oklch(15% 0.17 130)",
+          "oklch(27% 0.17 130)",
+          "oklch(39% 0.17 130)",
+          "oklch(51% 0.17 130)",
+          "oklch(63% 0.17 130)",
+          "oklch(75% 0.17 130)",
+          "oklch(86% 0.17 130)",
+          "oklch(95% 0.17 130)"
+        ]
+      },
+      "warm-cream": {
+        "role": "neutral",
+        "displayName": "Warm Cream",
+        "canonical": "#fbf7e9",
+        "tonalRamp": [
+          "oklch(15% 0.025 95)",
+          "oklch(27% 0.025 95)",
+          "oklch(39% 0.025 95)",
+          "oklch(51% 0.025 95)",
+          "oklch(63% 0.025 95)",
+          "oklch(75% 0.025 95)",
+          "oklch(86% 0.025 95)",
+          "oklch(95% 0.025 95)"
+        ]
+      },
+      "soft-wash": {
+        "role": "neutral",
+        "displayName": "Pale Wash",
+        "canonical": "#edf3dc",
+        "tonalRamp": [
+          "oklch(15% 0.045 116)",
+          "oklch(27% 0.045 116)",
+          "oklch(39% 0.045 116)",
+          "oklch(51% 0.045 116)",
+          "oklch(63% 0.045 116)",
+          "oklch(75% 0.045 116)",
+          "oklch(86% 0.045 116)",
+          "oklch(95% 0.045 116)"
+        ]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Quiet Paper",
+        "canonical": "#fffdf5",
+        "tonalRamp": [
+          "oklch(15% 0.018 95)",
+          "oklch(27% 0.018 95)",
+          "oklch(39% 0.018 95)",
+          "oklch(51% 0.018 95)",
+          "oklch(63% 0.018 95)",
+          "oklch(75% 0.018 95)",
+          "oklch(86% 0.018 95)",
+          "oklch(95% 0.018 95)"
+        ]
+      },
+      "sage": {
+        "role": "neutral",
+        "displayName": "Soft Sage",
+        "canonical": "#dceac9",
+        "tonalRamp": [
+          "oklch(15% 0.06 128)",
+          "oklch(27% 0.06 128)",
+          "oklch(39% 0.06 128)",
+          "oklch(51% 0.06 128)",
+          "oklch(63% 0.06 128)",
+          "oklch(75% 0.06 128)",
+          "oklch(86% 0.06 128)",
+          "oklch(95% 0.06 128)"
+        ]
+      },
+      "hairline": {
+        "role": "neutral",
+        "displayName": "Hairline Sage",
+        "canonical": "#cbd5bd",
+        "tonalRamp": [
+          "oklch(15% 0.04 130)",
+          "oklch(27% 0.04 130)",
+          "oklch(39% 0.04 130)",
+          "oklch(51% 0.04 130)",
+          "oklch(63% 0.04 130)",
+          "oklch(75% 0.04 130)",
+          "oklch(86% 0.04 130)",
+          "oklch(95% 0.04 130)"
+        ]
+      },
+      "hero-ink": {
+        "role": "neutral",
+        "displayName": "Hero Ivory",
+        "canonical": "#fff9e9",
+        "tonalRamp": [
+          "oklch(15% 0.028 90)",
+          "oklch(27% 0.028 90)",
+          "oklch(39% 0.028 90)",
+          "oklch(51% 0.028 90)",
+          "oklch(63% 0.028 90)",
+          "oklch(75% 0.028 90)",
+          "oklch(86% 0.028 90)",
+          "oklch(95% 0.028 90)"
+        ]
+      },
+      "hero-muted": {
+        "role": "neutral",
+        "displayName": "Hero Mist",
+        "canonical": "#d6e7d2",
+        "tonalRamp": [
+          "oklch(15% 0.035 145)",
+          "oklch(27% 0.035 145)",
+          "oklch(39% 0.035 145)",
+          "oklch(51% 0.035 145)",
+          "oklch(63% 0.035 145)",
+          "oklch(75% 0.035 145)",
+          "oklch(86% 0.035 145)",
+          "oklch(95% 0.035 145)"
+        ]
+      },
+      "white": {
+        "role": "neutral",
+        "displayName": "White",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "oklch(15% 0 100)",
+          "oklch(27% 0 100)",
+          "oklch(39% 0 100)",
+          "oklch(51% 0 100)",
+          "oklch(63% 0 100)",
+          "oklch(75% 0 100)",
+          "oklch(86% 0 100)",
+          "oklch(95% 0 100)"
+        ]
+      },
+      "hover-green": {
+        "role": "primary",
+        "displayName": "Hover Green",
+        "canonical": "color-mix(in srgb, #18251d 87%, #b7ff72)",
+        "tonalRamp": [
+          "oklch(15% 0.075 145)",
+          "oklch(27% 0.075 145)",
+          "oklch(39% 0.075 145)",
+          "oklch(51% 0.075 145)",
+          "oklch(63% 0.075 145)",
+          "oklch(75% 0.075 145)",
+          "oklch(86% 0.075 145)",
+          "oklch(95% 0.075 145)"
+        ]
+      },
+      "muted-ink": {
+        "role": "neutral",
+        "displayName": "Muted Green Ink",
+        "canonical": "color-mix(in srgb, #18251d 70%, #ffffff)",
+        "tonalRamp": [
+          "oklch(15% 0.025 145)",
+          "oklch(27% 0.025 145)",
+          "oklch(39% 0.025 145)",
+          "oklch(51% 0.025 145)",
+          "oklch(63% 0.025 145)",
+          "oklch(75% 0.025 145)",
+          "oklch(86% 0.025 145)",
+          "oklch(95% 0.025 145)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Large home welcome headline."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Page and feature headings."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Pet names and prominent card titles."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Descriptions, instructions, and form content."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Navigation and compact metadata."
+      }
+    },
+    "shadows": [
+      {
+        "name": "pet-card",
+        "value": "0 9px 22px rgba(24, 37, 29, .08)",
+        "purpose": "Listing card at rest."
+      },
+      {
+        "name": "pet-card-hover",
+        "value": "0 16px 28px rgba(24, 37, 29, .14)",
+        "purpose": "Lifted listing card."
+      },
+      {
+        "name": "quicklink",
+        "value": "0 8px 20px rgba(24, 37, 29, .07)",
+        "purpose": "Public quick link at rest."
+      }
+    ],
+    "motion": [
+      {
+        "name": "state",
+        "value": "180ms ease",
+        "purpose": "Color, border, transform, and shadow state transitions; disabled for reduced motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "mobile",
+        "value": "600px"
+      },
+      {
+        "name": "hero-stack",
+        "value": "900px"
+      },
+      {
+        "name": "nav-compress",
+        "value": "1024px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Default action on cream and paper surfaces.",
+      "html": "<button class=\"ds-btn-primary\">View record</button>",
+      "css": ".ds-btn-primary { min-height:44px; padding:11px 16px; border:1px solid var(--brand, #18251d); border-radius:10px; background:var(--brand, #18251d); color:var(--on-brand, #ffffff); font:700 16px/20px \"Source Sans 3\",Arial,sans-serif; cursor:pointer; transition:background 180ms ease,transform 180ms ease,box-shadow 180ms ease; } .ds-btn-primary:hover { background:var(--brand-hover, #233b29); transform:translateY(-2px); box-shadow:0 5px 12px rgba(24,37,29,.13); } .ds-btn-primary:focus-visible { outline:3px solid var(--focus, #b7ff72); outline-offset:2px; }"
+    },
+    {
+      "name": "Hero Button",
+      "kind": "button",
+      "refersTo": "button-hero",
+      "description": "Lime call to action on the deep green hero.",
+      "html": "<div class=\"ds-hero-surface\"><button class=\"ds-btn-hero\">Browse approved pets</button></div>",
+      "css": ".ds-hero-surface { display:inline-block; padding:20px; border-radius:16px; background:var(--hero, #18251d); } .ds-btn-hero { min-height:44px; padding:11px 16px; border:1px solid var(--lime, #b7ff72); border-radius:10px; background:var(--lime, #b7ff72); color:var(--dark-ink, #18251d); font:700 16px/20px \"Source Sans 3\",Arial,sans-serif; cursor:pointer; transition:background 180ms ease,transform 180ms ease; } .ds-btn-hero:hover { background:#ffffff; transform:translateY(-2px); } .ds-btn-hero:focus-visible { outline:3px solid var(--focus, #b7ff72); outline-offset:2px; }"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Secondary action for forms and repeated record controls.",
+      "html": "<button class=\"ds-btn-outline\">Log in</button>",
+      "css": ".ds-btn-outline { min-height:44px; padding:11px 16px; border:1px solid var(--ink, #18251d); border-radius:10px; background:transparent; color:var(--ink, #18251d); font:700 16px/20px \"Source Sans 3\",Arial,sans-serif; cursor:pointer; transition:background 180ms ease,transform 180ms ease; } .ds-btn-outline:hover { background:var(--brand-soft, #dceac9); transform:translateY(-2px); } .ds-btn-outline:focus-visible { outline:3px solid var(--focus, #b7ff72); outline-offset:2px; }"
+    },
+    {
+      "name": "Service Navigation",
+      "kind": "nav",
+      "refersTo": "nav-active",
+      "description": "Green service bar with a lime active destination.",
+      "html": "<nav class=\"ds-nav\" aria-label=\"Service navigation\"><a class=\"ds-nav-link ds-nav-active\" href=\"#\">Adopt a pet</a><a class=\"ds-nav-link\" href=\"#\">Pet care</a></nav>",
+      "css": ".ds-nav { display:flex; flex-wrap:wrap; align-items:center; gap:5px; padding:9px 12px; border-radius:12px; background:var(--hero, #18251d); } .ds-nav-link { display:inline-flex; align-items:center; min-height:40px; padding:9px 14px; border-radius:9px; color:var(--hero-ink, #fff9e9); font:600 14px/20px \"Source Sans 3\",Arial,sans-serif; text-decoration:none; transition:background 180ms ease,color 180ms ease; } .ds-nav-link:hover { background:rgba(183,255,114,.13); color:var(--lime, #b7ff72); } .ds-nav-active { background:var(--lime, #b7ff72); color:var(--dark-ink, #18251d); } .ds-nav-link:focus-visible { outline:3px solid var(--focus, #b7ff72); outline-offset:2px; }"
+    },
+    {
+      "name": "Labeled Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Paper input with a visible label and lime keyboard focus.",
+      "html": "<label class=\"ds-field\"><span>Pet name</span><input type=\"text\" placeholder=\"Enter pet name\"></label>",
+      "css": ".ds-field { display:grid; gap:8px; color:var(--ink, #18251d); font:500 16px/22px \"Source Sans 3\",Arial,sans-serif; } .ds-field input { box-sizing:border-box; width:100%; min-height:46px; padding:10px 12px; border:1px solid var(--line, #cbd5bd); border-radius:10px; background:var(--paper, #fffdf5); color:var(--ink, #18251d); font:400 18px/26px \"Source Sans 3\",Arial,sans-serif; caret-color:var(--brand, #18251d); } .ds-field input::placeholder { color:#5e6b61; } .ds-field input:focus-visible { outline:3px solid var(--focus, #b7ff72); outline-offset:0; border-color:var(--brand, #18251d); }"
+    },
+    {
+      "name": "Pet Listing Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Image-led adoption card; the preview shows the product's missing-photo fallback.",
+      "html": "<article class=\"ds-pet-card\"><div class=\"ds-pet-photo\">No photo</div><div class=\"ds-pet-body\"><h3>Milo</h3><p>Dog · Young · Male</p><a href=\"#\">View record</a></div></article>",
+      "css": ".ds-pet-card { width:230px; overflow:hidden; border-radius:16px; background:var(--paper, #fffdf5); color:var(--ink, #18251d); box-shadow:0 9px 22px rgba(24,37,29,.08); font-family:\"Source Sans 3\",Arial,sans-serif; transition:transform 180ms ease,box-shadow 180ms ease; } .ds-pet-card:hover,.ds-pet-card:focus-within { transform:translateY(-4px); box-shadow:0 16px 28px rgba(24,37,29,.14); } .ds-pet-photo { display:grid; place-items:center; width:100%; aspect-ratio:4/3; background:var(--brand-soft, #dceac9); color:#526455; font:400 14px/20px \"Source Sans 3\",Arial,sans-serif; } .ds-pet-body { display:grid; gap:8px; padding:20px; } .ds-pet-body h3 { margin:0; font:800 1.55rem/1.18 Fraunces,Georgia,serif; } .ds-pet-body p { margin:0; font-size:14px; } .ds-pet-body a { color:var(--brand, #18251d); font-weight:600; text-underline-offset:.22em; } .ds-pet-body a:focus-visible { outline:3px solid var(--focus, #b7ff72); outline-offset:2px; }"
+    },
+    {
+      "name": "Source Chip",
+      "kind": "chip",
+      "refersTo": "chip-source",
+      "description": "Small textual source or status marker on a soft sage surface.",
+      "html": "<span class=\"ds-chip\">CAVD shelter</span>",
+      "css": ".ds-chip { display:inline-flex; align-items:center; padding:3px 8px; border-radius:999px; background:var(--brand-soft, #dceac9); color:var(--brand, #18251d); font:400 14px/20px \"Source Sans 3\",Arial,sans-serif; }"
+    },
+    {
+      "name": "Office Table",
+      "kind": "custom",
+      "description": "Compact review data with a sage heading and alternating rows.",
+      "html": "<div class=\"ds-table-wrap\"><table class=\"ds-table\"><thead><tr><th>Pet</th><th>Status</th></tr></thead><tbody><tr><td>Milo</td><td>Pending review</td></tr><tr><td>Luna</td><td>Approved</td></tr></tbody></table></div>",
+      "css": ".ds-table-wrap { overflow-x:auto; border:1px solid var(--line, #cbd5bd); border-radius:12px; background:var(--paper, #fffdf5); } .ds-table { width:100%; border-collapse:collapse; color:var(--ink, #18251d); font:400 14px/20px \"Source Sans 3\",Arial,sans-serif; } .ds-table th,.ds-table td { padding:12px; border-bottom:1px solid var(--line, #cbd5bd); text-align:left; } .ds-table th { background:var(--brand-soft, #dceac9); font-weight:600; } .ds-table tbody tr:nth-child(even) { background:var(--canvas-wash, #edf3dc); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Caring Bridge",
+    "overview": "PawsLink makes the path from pet registration to approved adoption feel welcoming and clear. Warm cream surrounds deep green navigation and feature panels. Lime marks the next useful action. Real pet photographs supply warmth and individuality, especially in the large right-side home and learning heroes and the adoption cards.\n\nThe public experience has generous spacing, oversized Fraunces headlines, and playful rounded cards. Owner, veterinarian, and CAVD screens use the same colors and type with tighter rows, forms, filters, and tables so work remains easy to scan. The default is light; the existing theme control offers a dark variant. CAVD and capstone identification remain visible without making the visual world look like a paper form.",
+    "keyCharacteristics": [
+      "A cream ground with a contiguous deep green header, navigation, prototype strip, and home hero.",
+      "Lime action and active-navigation highlights paired with deep green text.",
+      "Prominent real animal photography, serif display type, and softly rounded cards.",
+      "Coordinated, denser task layouts for owner, veterinary, and office workflows."
+    ],
+    "rules": [
+      {
+        "name": "The Two-Color Anchor Rule",
+        "body": "Keep Shelter Green (#18251d) and Action Lime (#b7ff72) exact. Supporting colors may distinguish surfaces and feedback states, but must not replace either anchor.",
+        "section": "colors"
+      },
+      {
+        "name": "The Two-Voice Rule",
+        "body": "Use Fraunces for expressive headings and Source Sans 3 for task content. Reserve monospace for values that benefit from fixed-width scanning.",
+        "section": "typography"
+      },
+      {
+        "name": "The Density Follows Task Rule",
+        "body": "Give discovery and learning generous space; keep review queues, forms, and records compact enough to scan without losing the shared palette or type.",
+        "section": "layout"
+      },
+      {
+        "name": "The Quiet Work Surface Rule",
+        "body": "Use paper and borders for staff content. Save lifted shadows for cards that invite exploration or selection.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do keep all existing routes, forms, validation, permissions, review actions, and Supabase behavior while extending this visual system.",
+      "Do use real project pet photography and the text fallback when an image is unavailable.",
+      "Do keep the skip link, semantic navigation and tables, labelled fields, visible keyboard focus, textual status, and reduced-motion treatment.",
+      "Do retain CAVD and capstone identification and the existing public-record privacy boundary."
+    ],
+    "donts": [
+      "Don't revive the old white-paper municipal styling, square listing cards, IBM Plex/Source Serif pairing, or tiny forest-green accents as the default look.",
+      "Don't treat a match as an approval or expose owner contact details on public records.",
+      "Don't replace the exact green and lime anchors, cover pet photographs with chips or copy, or fabricate a photo when one is missing."
+    ]
+  }
+}
