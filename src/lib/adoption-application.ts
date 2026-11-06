@@ -1,3 +1,18 @@
+import type { Application } from './types'
+
+export function needsApplicationForm(application: Pick<Application, 'status' | 'answers_json'> | undefined): boolean {
+  return !application || application.status === 'pending' && !application.answers_json
+}
+
+export function applicationPath(listingId: string, application?: Application): string {
+  return application && !needsApplicationForm(application)
+    ? `/app/applications/${application.id}` : `/app/listings/${listingId}/apply?source=explore`
+}
+
+export function applicationActionLabel(application?: Application): string {
+  return !needsApplicationForm(application) ? 'View application' : application ? 'Complete application' : 'Apply for adoption'
+}
+
 export type ApplicationField = {
   key: string
   label: string

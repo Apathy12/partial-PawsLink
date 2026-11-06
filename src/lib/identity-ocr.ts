@@ -38,7 +38,6 @@ const documentCues: Partial<Record<IdType, RegExp>> = {
 export function assessIdentityOcr(read: IdentityOcrRead, details: {
   name: string
   idType: IdType
-  prcNumber?: string | null
 }): IdentityOcrAssessment {
   const text = words(read.text)
   const checks: IdentityOcrCheck[] = []
@@ -51,24 +50,11 @@ export function assessIdentityOcr(read: IdentityOcrRead, details: {
   checks.push({ label: 'First and last name appear on the ID', found: nameFound })
   if (!nameFound) warnings.push('The account name could not be matched to the ID text.')
 
-  if (details.idType === 'prc_id') {
-    const prcFound = /PROFESSIONAL REGULATION COMMISSION|PROFESSIONAL IDENTIFICATION CARD|\bPRC\b/.test(text)
-    const vetFound = /VETERINARIAN|VETERINARY MEDICINE/.test(text)
-    const number = (details.prcNumber || '').replace(/\D/g, '')
-    const licenseFound = number.length >= 4 && read.text.replace(/\D/g, '').includes(number)
-    checks.push({ label: 'PRC card wording appears', found: prcFound })
-    checks.push({ label: 'Veterinarian profession appears', found: vetFound })
-    checks.push({ label: 'Entered PRC number appears', found: licenseFound })
-    if (!prcFound) warnings.push('PRC card wording was not detected.')
-    if (!vetFound) warnings.push('The veterinarian profession was not detected.')
-    if (!licenseFound) warnings.push('The entered PRC number could not be matched to the card text.')
-  } else {
-    const cue = documentCues[details.idType]
-    if (cue) {
-      const found = cue.test(text)
-      checks.push({ label: 'Selected ID type appears', found })
-      if (!found) warnings.push('The selected ID type could not be recognized from the document.')
-    }
+  const cue = documentCues[details.idType]
+  if (cue) {
+    const found = cue.test(text)
+    checks.push({ label: 'Selected ID type appears', found })
+    if (!found) warnings.push('The selected ID type could not be recognized from the document.')
   }
 
   return { checks, warnings, confidence: read.confidence, pages: read.pages }

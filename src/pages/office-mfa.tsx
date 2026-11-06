@@ -88,7 +88,8 @@ export function OfficeMfaPage() {
         </form> : <>
           {!enrollment ? <button className="btn" type="button" disabled={busy} onClick={() => void startEnrollment()}>{busy ? 'Preparing…' : 'Set up authenticator'}</button> : <>
             <p>Scan this code with an authenticator app, then enter its six-digit code.</p>
-            <img src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(enrollment.qr)}`} alt="Authenticator setup QR code" width="200" height="200" />
+            {/* Supabase returns the QR as a ready data URL; wrapping it again breaks the image. */}
+            <img src={enrollment.qr.startsWith('data:') ? enrollment.qr : `data:image/svg+xml;charset=utf-8,${encodeURIComponent(enrollment.qr)}`} alt="Authenticator setup QR code" width="200" height="200" />
             <p className="hint">If you cannot scan it, enter this setup key in your app: <code>{enrollment.secret}</code></p>
             <form onSubmit={verify}>
               <Field label="Authenticator code"><input inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={code} onChange={e => setCode(e.target.value)} required /></Field>

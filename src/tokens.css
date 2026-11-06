@@ -37,7 +37,12 @@
   --shell-width: 1240px;
   --form-width: 720px;
   --radius: 14px;
+  --stack-gap: 24px;
   --motion: 180ms ease;
+}
+
+@media (max-width: 760px) {
+  :root { --stack-gap: 20px; }
 }
 
 :root[data-theme='dark'] {

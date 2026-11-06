@@ -14,7 +14,7 @@ type AuthValue = {
   loading: boolean
   configured: boolean
   signIn: (email: string, password: string, captchaToken?: string) => Promise<string | null>
-  signUp: (email: string, password: string, name: string, contact: string, requestedRole: 'user' | 'vet', clinicName: string, captchaToken?: string) => Promise<{ error: string | null; needsConfirmation: boolean }>
+  signUp: (email: string, password: string, name: string, contact: string, captchaToken?: string) => Promise<{ error: string | null; needsConfirmation: boolean }>
   signOut: () => Promise<void>
   refresh: () => Promise<void>
 }
@@ -91,17 +91,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return explain(cause as { message?: string })
       }
     },
-    async signUp(email, password, name, contact, requestedRole, clinicName, captchaToken) {
+    async signUp(email, password, name, contact, captchaToken) {
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           emailRedirectTo: appUrl('/verify'),
           ...(captchaToken ? { captchaToken } : {}),
-          data: {
-            name, contact, requested_role: requestedRole, clinic_name: clinicName,
-            ...(requestedRole === 'user' ? { profile_setup_complete: false } : {})
-          }
+          data: { name, contact, profile_setup_complete: false }
         }
       })
       return { error: error ? explain(error) : null, needsConfirmation: !error && !data.session }

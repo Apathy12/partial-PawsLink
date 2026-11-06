@@ -5,12 +5,15 @@ import { explain, supabase } from '../lib/supabase'
 import { uploadPetPhoto } from '../lib/photos'
 import { VisitForm, VisitHistory } from '../lib/visits'
 import { MatchTraitsEditor } from './match-traits-editor'
+import { PetEligibilityEditor } from './adoption-rules'
+import { useEligibilityReport } from '../lib/use-eligibility-report'
 import { stageLabel } from '../lib/adoption-application'
-import { fmtDate, petLine, qrUrl, sourceLabel } from '../lib/format'
+import { fmtDate, petLine, sourceLabel } from '../lib/format'
+import { fetchRegistryPage, REGISTRY_PAGE_SIZE } from '../lib/pet-registry'
 import type { AdoptionRecord, Application, Listing, Pet, Profile, Visit, VisitCorrection } from '../lib/types'
 import {
-  Empty, Field, Photo, QrBlock, Shell, ToastHost, appPill, listingPill,
-  registryPill, sourcePill, useToasts
+  DashboardWelcome, Empty, Field, Notice, Pagination, PetCode, Photo, Shell, ToastHost, appPill, discoveryPill,
+  listingPill, registryPill, sourcePill, useToasts
 } from '../ui'
 
 type Counts = { regs: number; lists: number; apps: number; verifications: number }
@@ -24,27 +27,29 @@ export function OfficeShell({ children, counts }: { children: ReactNode; counts?
       extra={<span className="sub">The city is the system of record.</span>}
       onSignOut={() => void signOut()}
       nav={[
-        { to: '/office', label: 'Desk', end: true },
+        { to: '/office', label: 'Dashboard', end: true },
         { to: '/office/registrations', label: 'Registrations', count: counts?.regs },
         { to: '/office/listings', label: 'Listings', count: counts?.lists },
+        { to: '/office/adoption-rules', label: 'Adoption rules' },
         { to: '/office/applications', label: 'Applications', count: counts?.apps },
         { to: '/office/verifications', label: 'ID reviews', count: counts?.verifications },
         { to: '/office/intake', label: 'Shelter intake' },
         { to: '/office/registry', label: 'Full registry' },
+        { to: '/office/veterinary', label: 'Veterinary' },
         { to: '/office/accounts', label: 'Accounts' }
       ]}
     >{children}</Shell>
   )
 }
 
-function useCounts() {
+export function useCounts() {
   const [counts, setCounts] = useState<Counts>({ regs: 0, lists: 0, apps: 0, verifications: 0 })
   const refresh = useCallback(() => {
     Promise.all([
       supabase.from('pets').select('id', { count: 'exact', head: true }).eq('registry_status', 'pending'),
       supabase.from('listings').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
       supabase.from('applications').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
-      supabase.from('verification_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending').eq('requested_role', 'vet')
+      supabase.from('verification_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending')
     ]).then(([a, b, c, d]) => setCounts({
       regs: a.count || 0, lists: b.count || 0, apps: c.count || 0, verifications: d.count || 0
     }))
@@ -56,13 +61,35 @@ function useCounts() {
 export function OfficeHome() {
   const { counts, refresh } = useCounts()
   const { ok, bad, toasts } = useToasts()
+  const eligibility = useEligibilityReport()
+  const [adopterCount, setAdopterCount] = useState<number | null>(null)
+  useEffect(() => {
+    supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'user')
+      .then(({ count }) => setAdopterCount(count))
+  }, [])
   const [regs, setRegs] = useState<Pet[]>([])
+  const [allPets, setAllPets] = useState<Pet[]>([])
+  const [petsLoading, setPetsLoading] = useState(true)
+  const [petsError, setPetsError] = useState<string | null>(null)
+  const [petSearch, setPetSearch] = useState('')
+  const [petPage, setPetPage] = useState(0)
   const [lists, setLists] = useState<(Listing & { pet?: Pet })[]>([])
   const [apps, setApps] = useState<(Application & { listing?: Listing; pet?: Pet; adopter?: Profile })[]>([])
 
   const load = useCallback(async () => {
-    const { data: p } = await supabase.from('pets').select('*').eq('registry_status', 'pending').order('created_at')
-    setRegs((p || []) as Pet[])
+    setPetsLoading(true)
+    setPetsError(null)
+    const registry: Pet[] = []
+    for (let offset = 0; ; offset += 500) {
+      const { data, error } = await supabase.from('pets').select('*')
+        .order('created_at', { ascending: false }).order('id').range(offset, offset + 499)
+      if (error) { setPetsError(explain(error)); break }
+      registry.push(...(data || []) as Pet[])
+      if (!data || data.length < 500) break
+    }
+    setAllPets(registry)
+    setRegs(registry.filter(pet => pet.registry_status === 'pending').sort((a, b) => a.created_at.localeCompare(b.created_at)))
+    setPetsLoading(false)
     const { data: l } = await supabase.from('listings').select('*').eq('status', 'pending').order('created_at')
     const listings = (l || []) as Listing[]
     const petIds = listings.map(x => x.pet_id)
@@ -102,7 +129,7 @@ export function OfficeHome() {
     const { error } = await supabase.from('pets').update({
       registry_status: 'approved', decided_at: new Date().toISOString(), registry_note: null
     }).eq('id', pet.id)
-    if (error) bad(explain(error)); else { ok(pet.name + ' verified. QR is now public.'); void load() }
+    if (error) bad(explain(error)); else { ok(pet.name + ' verified. Its public record is now open.'); void load() }
   }
   async function rejectReg(pet: Pet) {
     const reason = window.prompt('Reason returned to the owner') || ''
@@ -113,6 +140,9 @@ export function OfficeHome() {
     if (error) bad(explain(error)); else { ok('Registration rejected.'); void load() }
   }
   async function decideListing(l: Listing, status: 'approved' | 'rejected') {
+    if (status === 'approved' && !eligibility.report?.find(row => row.pet_id === l.pet_id)?.eligible) {
+      bad('Review and complete the pet’s adoption eligibility conditions first.'); return
+    }
     const note = status === 'rejected' ? (window.prompt('Reason') || '') : null
     const { error } = await supabase.from('listings').update({
       status, decision_note: note, decided_at: new Date().toISOString()
@@ -120,55 +150,40 @@ export function OfficeHome() {
     if (error) bad(explain(error)); else { ok(status === 'approved' ? 'Listing published.' : 'Listing rejected.'); void load() }
   }
 
+  const filteredPets = allPets.filter(pet =>
+    `${pet.name} ${pet.qr_slug} ${pet.breed || ''} ${pet.species}`.toLowerCase().includes(petSearch.trim().toLowerCase()))
+  const activePetPage = Math.min(petPage, Math.max(0, Math.ceil(filteredPets.length / REGISTRY_PAGE_SIZE) - 1))
+  const visiblePets = filteredPets.slice(activePetPage * REGISTRY_PAGE_SIZE, (activePetPage + 1) * REGISTRY_PAGE_SIZE)
+
   return (
     <OfficeShell counts={counts}>
       <ToastHost toasts={toasts} />
-      <div className="page-head">
-        <h1>CAVD registry desk</h1>
-        <p className="sub">Nothing is public, and no ownership moves, without a decision on this desk.</p>
-      </div>
-      <div className="grid grid-4" style={{ marginBottom: '1rem' }}>
-        <div className={'stat ' + (counts.regs ? 'warn' : '')}><div className="n">{counts.regs}</div><div className="l">Registrations to verify</div></div>
-        <div className={'stat ' + (counts.lists ? 'warn' : '')}><div className="n">{counts.lists}</div><div className="l">Listings to approve</div></div>
-        <div className={'stat ' + (counts.apps ? 'warn' : '')}><div className="n">{counts.apps}</div><div className="l">Applications to decide</div></div>
-        <Link className={'stat stat-link ' + (counts.verifications ? 'warn' : '')} to="/office/verifications"><div className="n">{counts.verifications}</div><div className="l">IDs to review <span aria-hidden="true">→</span></div></Link>
-      </div>
-
-      <div className="card">
-        <div className="card-head"><h2>Pending registrations</h2><span className="spacer" /><Link className="btn btn-sm btn-outline" to="/office/registrations">Open queue</Link></div>
-        {regs.length === 0 ? <Empty>Nothing waiting.</Empty> : <div className="table-wrap"><table className="tbl">
-          <thead><tr><th>Pet</th><th>Status</th><th>Actions</th></tr></thead><tbody>{regs.map(p => (
-          <tr key={p.id}>
-            <td><div className="table-pet"><div className="avatar"><Photo url={p.photo_url} name={p.name} /></div>
-              <div><Link className="pet-name" to={'/office/pets/' + p.id}>{p.name}</Link><div className="sub">{petLine(p)}</div></div>
-            </div></td>
-            <td>{registryPill(p.registry_status)}</td>
-            <td className="btn-row">
-              <button className="btn btn-sm btn-outline" type="button" onClick={() => void approveReg(p)}>Verify</button>
-              <button className="btn btn-sm btn-danger" type="button" onClick={() => void rejectReg(p)}>Reject</button>
-            </td>
-          </tr>
-        ))}</tbody></table></div>}
-      </div>
-
-      <div className="card">
-        <div className="card-head"><h2>Pending listings</h2><span className="spacer" /><Link className="btn btn-sm btn-outline" to="/office/listings">Open queue</Link></div>
-        <p className="sub">CAVD reviews owner requests before they appear on the adoption bridge.</p>
-        {lists.length === 0 ? <Empty>Nothing waiting.</Empty> : <div className="table-wrap"><table className="tbl">
-          <thead><tr><th>Pet</th><th>Source</th><th>Notes</th><th>Actions</th></tr></thead><tbody>{lists.map(l => (
-          <tr key={l.id}>
-            <td><div className="table-pet"><div className="avatar"><Photo url={l.pet?.photo_url} name={l.pet?.name || 'Pet'} /></div><Link className="pet-name" to={'/office/pets/' + l.pet_id}>{l.pet?.name || l.pet_id}</Link></div></td>
-            <td>{l.pet ? sourcePill(l.pet.source) : null}</td>
-            <td className="table-notes">{l.notes}</td>
-            <td className="btn-row">
-              <button className="btn btn-sm btn-outline" type="button" onClick={() => void decideListing(l, 'approved')}>Approve</button>
-              <button className="btn btn-sm btn-danger" type="button" onClick={() => void decideListing(l, 'rejected')}>Reject</button>
-            </td>
-          </tr>
-        ))}</tbody></table></div>}
-      </div>
-
-      <div className="card">
+      <div className="dashboard">
+        <div className="dashboard-top">
+          <DashboardWelcome title="CAVD registry desk" actions={<>
+            <Link className="btn" to="/office/applications">Review applications</Link>
+            <Link className="btn btn-outline" to="/office/registry">View pet registry</Link>
+          </>}>Nothing is public, and no ownership moves, without a decision on this desk.</DashboardWelcome>
+          <section className="card dashboard-review-summary" aria-labelledby="pending-reviews-title">
+            <h2 id="pending-reviews-title">Pending reviews</h2>
+            <nav aria-label="Pending review queues">
+              <Link to="/office/registrations"><span>Registrations to verify</span><strong>{counts.regs}</strong></Link>
+              <Link to="/office/listings"><span>Listings to approve</span><strong>{counts.lists}</strong></Link>
+              <Link to="/office/applications"><span>Applications to decide</span><strong>{counts.apps}</strong></Link>
+              <Link to="/office/verifications"><span>IDs to review</span><strong>{counts.verifications}</strong></Link>
+            </nav>
+          </section>
+        </div>
+        <dl className="dashboard-metrics" aria-label="Registry overview">
+          <div><dt>Total registered pets</dt><dd>{petsLoading ? '—' : allPets.length}</dd></div>
+          <div><dt>Eligible for adoption</dt><dd>{eligibility.report?.filter(row => row.eligible).length ?? '—'}</dd></div>
+          <div><dt>On hold</dt><dd>{eligibility.report?.filter(row => row.availability === 'hold').length ?? '—'}</dd></div>
+          <div><dt>Owner / adopter accounts</dt><dd>{adopterCount ?? '—'}</dd></div>
+        </dl>
+        {eligibility.error ? <Notice kind="warn">{eligibility.error}</Notice> : null}
+        <p className="dashboard-rules-link"><Link className="record-link" to="/office/adoption-rules">Review eligibility rules, exclusion reasons and matching weights</Link></p>
+        <div className="dashboard-queues">
+          <div className="card dashboard-primary-queue">
         <div className="card-head"><h2>Pending applications</h2><span className="spacer" /><Link className="btn btn-sm btn-outline" to="/office/applications">Open queue</Link></div>
         {apps.length === 0 ? <Empty>Nothing waiting.</Empty> : <div className="table-wrap"><table className="tbl">
           <thead><tr><th>Applicant</th><th>Pet</th><th>Review stage</th><th>Actions</th></tr></thead><tbody>{apps.map(a => (
@@ -178,6 +193,58 @@ export function OfficeHome() {
             <td><Link className="btn btn-sm btn-outline" to={`/office/applications/${a.id}`}>Review application</Link></td>
           </tr>
         ))}</tbody></table></div>}
+      </div>
+          <div className="card">
+        <div className="card-head"><h2>Pending registrations</h2><span className="spacer" /><Link className="btn btn-sm btn-outline" to="/office/registrations">Open queue</Link></div>
+        {regs.length === 0 ? <Empty>Nothing waiting.</Empty> : <div className="table-wrap"><table className="tbl">
+          <thead><tr><th>Pet</th><th>Status</th><th>Actions</th></tr></thead><tbody>{regs.map(p => (
+          <tr key={p.id}>
+            <td><div className="table-pet"><div className="avatar"><Photo url={p.photo_url} name={p.name} /></div>
+              <div><Link className="pet-name" to={'/office/pets/' + p.id}>{p.name}</Link><div className="sub">{petLine(p)}</div><PetCode code={p.qr_slug} compact /></div>
+            </div></td>
+            <td>{registryPill(p.registry_status)}</td>
+            <td className="btn-row">
+              <button className="btn btn-sm btn-outline" type="button" onClick={() => void approveReg(p)}>Verify</button>
+              <button className="btn btn-sm btn-danger" type="button" onClick={() => void rejectReg(p)}>Reject</button>
+            </td>
+          </tr>
+        ))}</tbody></table></div>}
+      </div>
+          <div className="card">
+        <div className="card-head"><h2>Pending listings</h2><span className="spacer" /><Link className="btn btn-sm btn-outline" to="/office/listings">Open queue</Link></div>
+        <p className="sub">CAVD reviews owner requests before they appear on the adoption bridge.</p>
+        {lists.length === 0 ? <Empty>Nothing waiting.</Empty> : <div className="table-wrap"><table className="tbl">
+          <thead><tr><th>Pet</th><th>Source</th><th>Notes</th><th>Actions</th></tr></thead><tbody>{lists.map(l => (
+          <tr key={l.id}>
+            <td><div className="table-pet"><div className="avatar"><Photo url={l.pet?.photo_url} name={l.pet?.name || 'Pet'} /></div><Link className="pet-name" to={'/office/pets/' + l.pet_id}>{l.pet?.name || l.pet_id}</Link></div></td>
+            <td>{l.pet ? sourcePill(l.pet.source) : null}</td>
+            <td className="table-notes">{l.notes}</td>
+            <td className="btn-row">
+              <button className="btn btn-sm btn-outline" type="button" disabled={!eligibility.report?.find(row => row.pet_id === l.pet_id)?.eligible} onClick={() => void decideListing(l, 'approved')}>Approve</button>
+              <Link className="record-link" to={`/office/pets/${l.pet_id}#adoption-eligibility`}>Review eligibility</Link>
+              <button className="btn btn-sm btn-danger" type="button" onClick={() => void decideListing(l, 'rejected')}>Reject</button>
+            </td>
+          </tr>
+        ))}</tbody></table></div>}
+      </div>
+        </div>
+      <section className="card" aria-labelledby="dashboard-all-pets-title">
+        <div className="card-head"><h2 id="dashboard-all-pets-title">All registered pets</h2><span className="spacer" /><Link className="btn btn-sm btn-outline" to="/office/registry">Open full registry</Link></div>
+        <p className="sub">{allPets.length} registered pet{allPets.length === 1 ? '' : 's'} across owner and shelter records, including pending, approved, and rejected registrations.</p>
+        <Field label="Find a registered pet"><input type="search" value={petSearch} placeholder="Name, PET ID, breed or species" onChange={event => { setPetSearch(event.target.value); setPetPage(0) }} /></Field>
+        {petsError ? <Notice kind="bad">Could not load all registered pets: {petsError}</Notice> : null}
+        {petsLoading ? <p role="status">Loading registered pets…</p> : visiblePets.length ? <>
+          <div className="table-wrap"><table className="tbl">
+            <thead><tr><th scope="col">Pet</th><th scope="col">PET ID</th><th scope="col">Registration</th><th scope="col">Custody</th><th scope="col">Record</th></tr></thead>
+            <tbody>{visiblePets.map(pet => <tr key={pet.id}>
+              <td><div className="table-pet"><div className="avatar"><Photo url={pet.photo_url} name={pet.name} /></div><div><strong>{pet.name}</strong><div className="sub">{petLine(pet)}</div></div></div></td>
+              <td><PetCode code={pet.qr_slug} compact /></td><td>{registryPill(pet.registry_status)}</td><td>{sourcePill(pet.source)}</td>
+              <td><Link className="btn btn-sm btn-outline" to={`/office/pets/${pet.id}`}>Full pet record</Link></td>
+            </tr>)}</tbody>
+          </table></div>
+          <Pagination label="Registered pets" page={activePetPage} pageSize={REGISTRY_PAGE_SIZE} total={filteredPets.length} onChange={setPetPage} />
+        </> : !petsError ? <Empty>{petSearch.trim() ? 'No registered pet matches your search.' : 'No pets have been registered yet.'}</Empty> : null}
+      </section>
       </div>
     </OfficeShell>
   )
@@ -198,13 +265,13 @@ export function OfficeRegistrations() {
       <ToastHost toasts={toasts} />
       <div className="page-head">
         <h1>Registration queue</h1>
-        <p className="sub">Verification is what makes the QR public. Unverified pets cannot be listed and clinics cannot append visits.</p>
+        <p className="sub">Verification opens the public record. Unverified pets cannot be listed.</p>
       </div>
       {rows.length === 0 ? <Empty>The queue is clear.</Empty> : <div className="table-wrap"><table className="tbl">
         <thead><tr><th>Pet</th><th>Details</th><th>Status</th><th>Actions</th></tr></thead><tbody>{rows.map(p => (
         <tr key={p.id}>
             <td><div className="table-pet"><div className="avatar"><Photo url={p.photo_url} name={p.name} /></div>
-              <div><span className="pet-name">{p.name}</span><div className="sub">{petLine(p)}</div></div>
+              <div><span className="pet-name">{p.name}</span><div className="sub">{petLine(p)}</div><PetCode code={p.qr_slug} compact /></div>
             </div></td>
             <td className="table-notes">
               <p>Colour: {p.color || '—'}</p><p>Markings: {p.markings || '—'}</p><p>{p.about || 'No notes.'}</p>
@@ -216,7 +283,7 @@ export function OfficeRegistrations() {
                   registry_status: 'approved', decided_at: new Date().toISOString()
                 }).eq('id', p.id)
                 if (error) bad(explain(error)); else { ok(p.name + ' verified.'); load() }
-              }}>Verify and issue QR</button>
+              }}>Verify record</button>
               <button className="btn btn-sm btn-danger" type="button" onClick={async () => {
                 const reason = window.prompt('Reason') || ''
                 if (!reason.trim()) return
@@ -236,6 +303,7 @@ export function OfficeRegistrations() {
 export function OfficeListings() {
   const { counts, refresh } = useCounts()
   const { ok, bad, toasts } = useToasts()
+  const eligibility = useEligibilityReport()
   const [pending, setPending] = useState<(Listing & { pet?: Pet })[]>([])
   const [live, setLive] = useState<(Listing & { pet?: Pet })[]>([])
 
@@ -252,6 +320,9 @@ export function OfficeListings() {
   useEffect(() => { void load() }, [load])
 
   async function decide(l: Listing, status: 'approved' | 'rejected' | 'closed') {
+    if (status === 'approved' && !eligibility.report?.find(row => row.pet_id === l.pet_id)?.eligible) {
+      bad('Complete the pet’s CAVD eligibility review before approving its listing.'); return
+    }
     const note = status === 'rejected' ? (window.prompt('Reason') || '') : null
     const { error } = await supabase.from('listings').update({
       status, decision_note: note, decided_at: new Date().toISOString()
@@ -264,8 +335,9 @@ export function OfficeListings() {
       <ToastHost toasts={toasts} />
       <div className="page-head">
         <h1>Listing queue</h1>
-        <p className="sub">CAVD reviews owner requests before publishing them. Veterinary visits are kept in the pet record when available.</p>
+        <p className="sub">Registration, availability, current vaccination, completed sterilization, behavioral clearance, a Cleared veterinary visit and CAVD verification must pass before publishing.</p>
       </div>
+      {eligibility.error ? <Notice kind="bad">{eligibility.error}</Notice> : null}
       <div className="card">
         <h2>Waiting</h2>
         {pending.length === 0 ? <Empty>No listing requests waiting.</Empty> : (
@@ -279,7 +351,8 @@ export function OfficeListings() {
                     <td>{l.pet ? sourcePill(l.pet.source) : '—'}</td>
                     <td className="sub">{l.notes}</td>
                     <td className="btn-row">
-                      <button className="btn btn-sm btn-outline" type="button" onClick={() => void decide(l, 'approved')}>Approve</button>
+                      <button className="btn btn-sm btn-outline" type="button" disabled={!eligibility.report?.find(row => row.pet_id === l.pet_id)?.eligible} onClick={() => void decide(l, 'approved')}>Approve</button>
+                      <Link className="record-link" to={`/office/pets/${l.pet_id}#adoption-eligibility`}>Review eligibility</Link>
                       <button className="btn btn-sm btn-danger" type="button" onClick={() => void decide(l, 'rejected')}>Reject</button>
                     </td>
                   </tr>
@@ -290,7 +363,7 @@ export function OfficeListings() {
         )}
       </div>
       <div className="card">
-        <h2>Live on the bridge</h2>
+        <h2>Approved listings</h2><p className="sub">Only listings whose pets pass every eligibility condition appear publicly.</p>
         {live.length === 0 ? <Empty>None published.</Empty> : (
           <div className="table-wrap">
             <table className="tbl">
@@ -300,7 +373,7 @@ export function OfficeListings() {
                   <tr key={l.id}>
                     <td><div className="table-pet"><div className="avatar"><Photo url={l.pet?.photo_url} name={l.pet?.name || 'Pet'} /></div>{l.pet?.name}</div></td>
                     <td>{l.pet ? sourceLabel(l.pet.source) : '—'}</td>
-                    <td>{fmtDate(l.decided_at)}</td>
+                    <td>{fmtDate(l.decided_at)}<div className="sub">{eligibility.report?.find(row => row.pet_id === l.pet_id)?.eligible ? 'Visible on adoption bridge' : 'Hidden — eligibility review needed'}</div></td>
                     <td><button className="btn btn-sm btn-danger" type="button" onClick={() => void decide(l, 'closed')}>Close</button></td>
                   </tr>
                 ))}
@@ -359,6 +432,7 @@ export function CavdTransferControl({ application, onDone, onError }: {
 export function OfficeApplications() {
   const { counts, refresh } = useCounts()
   const [rows, setRows] = useState<(Application & { pet?: Pet; listing?: Listing; adopter?: Profile; owner?: Profile })[]>([])
+  const [path, setPath] = useState('all')
 
   const load = useCallback(async () => {
     const { data } = await supabase.from('applications').select('*').order('created_at', { ascending: false })
@@ -379,8 +453,9 @@ export function OfficeApplications() {
   }, [refresh])
   useEffect(() => { void load() }, [load])
 
-  const open = rows.filter(a => a.status === 'pending')
-  const done = rows.filter(a => a.status !== 'pending')
+  const visible = rows.filter(a => path === 'all' || a.discovery_path === path)
+  const open = visible.filter(a => a.status === 'pending')
+  const done = visible.filter(a => a.status !== 'pending')
 
   return (
     <OfficeShell counts={counts}>
@@ -388,12 +463,20 @@ export function OfficeApplications() {
         <h1>Adoption applications</h1>
         <p className="sub">Validate each request by speaking with the current owner or caretaker, or through a CAVD visit. Record what you confirmed before transferring ownership. Veterinary care remains in the pet record when available.</p>
       </div>
+      <form className="filters" onSubmit={e => e.preventDefault()}>
+        <Field label="Discovery path">
+          <select value={path} onChange={e => setPath(e.target.value)}>
+            <option value="all">All paths</option><option value="match">From Find My Match</option><option value="direct">From Direct Adoption</option>
+          </select>
+        </Field>
+      </form>
       {open.length === 0 ? <Empty>No open applications.</Empty> : <div className="table-wrap"><table className="tbl">
-        <thead><tr><th>Applicant</th><th>Pet</th><th>Review stage</th><th>Actions</th></tr></thead><tbody>{open.map(a => (
+        <thead><tr><th>Applicant</th><th>Pet</th><th>Path</th><th>Review stage</th><th>Actions</th></tr></thead><tbody>{open.map(a => (
         <tr key={a.id}>
           <td>{a.adopter?.name}<div className="sub">{a.adopter?.contact || a.adopter?.id}</div></td>
-          <td><div className="table-pet"><div className="avatar"><Photo url={a.pet?.photo_url} name={a.pet?.name || 'Pet'} /></div><div><span className="pet-name">{a.pet?.name}</span><div className="mono">{a.pet?.qr_slug}</div><div className="sub">{a.pet?.owner_id ? `Owner: ${a.owner?.name || 'Registered owner'}` : 'CAVD shelter'}</div>{a.owner?.contact ? <div className="sub">{a.owner.contact}</div> : null}</div></div></td>
-          <td>{stageLabel(a.review_stage, a.status)}</td>
+          <td><div className="table-pet"><div className="avatar"><Photo url={a.pet?.photo_url} name={a.pet?.name || 'Pet'} /></div><div><span className="pet-name">{a.pet?.name}</span>{a.pet ? <PetCode code={a.pet.qr_slug} compact /> : null}<div className="sub">{a.pet?.owner_id ? `Owner: ${a.owner?.name || 'Registered owner'}` : 'CAVD shelter'}</div>{a.owner?.contact ? <div className="sub">{a.owner.contact}</div> : null}</div></div></td>
+          <td>{discoveryPill(a.discovery_path)}</td>
+          <td>{stageLabel(a.review_stage, a.status)}{a.application_source === 'direct' ? <div className="sub">Direct adoption request</div> : null}</td>
           <td>
             <Link className="btn btn-sm btn-outline" to={`/office/applications/${a.id}`}>Review application</Link>
           </td>
@@ -404,12 +487,13 @@ export function OfficeApplications() {
           <h2>Decision history</h2>
           <div className="table-wrap">
             <table className="tbl">
-              <thead><tr><th>Adopter</th><th>Pet</th><th>Status</th><th>Note</th><th>Details</th></tr></thead>
+              <thead><tr><th>Adopter</th><th>Pet</th><th>Path</th><th>Status</th><th>Note</th><th>Details</th></tr></thead>
               <tbody>
                 {done.map(a => (
                   <tr key={a.id}>
                     <td>{a.adopter?.name}</td>
                     <td><div className="table-pet"><div className="avatar"><Photo url={a.pet?.photo_url} name={a.pet?.name || 'Pet'} /></div>{a.pet?.name}</div></td>
+                    <td>{discoveryPill(a.discovery_path)}</td>
                     <td>{appPill(a.status)}</td>
                     <td className="sub">{a.decision_note || '—'}</td>
                     <td><Link className="btn btn-sm btn-outline" to={`/office/applications/${a.id}`}>View application</Link></td>
@@ -465,13 +549,12 @@ export function OfficeIntake() {
       if (error) throw error
       if (alsoList) {
         const { error: le } = await supabase.from('listings').insert({
-          pet_id: data.id, listed_by: profile.id, status: 'approved',
-          notes: String(f.get('about') || '').trim() || null,
-          decided_by: profile.id, decided_at: new Date().toISOString()
+          pet_id: data.id, listed_by: profile.id, status: 'pending',
+          notes: String(f.get('about') || '').trim() || null
         })
         if (le) throw le
       }
-      ok(alsoList ? 'Intake verified and adoption listing published.' : 'Intake recorded and verified. QR issued.')
+      ok(alsoList ? 'Intake recorded. Complete eligibility review before approving its listing.' : 'Intake recorded. The pet starts on Hold for adoption.')
       nav('/office/pets/' + data.id)
     } catch (err) {
       bad(explain(err as { message?: string }))
@@ -485,7 +568,7 @@ export function OfficeIntake() {
       <ToastHost toasts={toasts} />
       <div className="page-head">
         <h1>Shelter intake</h1>
-        <p className="sub">For animals already in city custody. CAVD creates the registry record and QR, and can publish its shelter listing.</p>
+        <p className="sub">For animals already in city custody. Create the pet record, then complete the adoption eligibility review before publishing a listing.</p>
       </div>
       <form className="card" onSubmit={onSubmit} style={{ maxWidth: '42rem' }}>
         <Field label="Name given at the shelter"><input name="name" required /></Field>
@@ -511,9 +594,9 @@ export function OfficeIntake() {
         <label className="field" style={{ fontWeight: 400 }}><input type="checkbox" name="rabies" /> Rabies vaccinated (public flag)</label>
         <Field label="Rabies date, if marked"><input type="date" name="rabies_on" /></Field>
         <label className="field" style={{ fontWeight: 400 }}>
-          <input type="checkbox" checked={alsoList} onChange={e => setAlsoList(e.target.checked)} /> Publish an adoption listing after intake
+          <input type="checkbox" checked={alsoList} onChange={e => setAlsoList(e.target.checked)} /> Create a pending adoption listing for review
         </label>
-        <button className="btn" type="submit" disabled={busy}>{busy ? 'Saving…' : 'Create record and issue QR'}</button>
+        <button className="btn" type="submit" disabled={busy}>{busy ? 'Saving…' : 'Create pet record'}</button>
       </form>
     </OfficeShell>
   )
@@ -521,18 +604,38 @@ export function OfficeIntake() {
 
 export function OfficeRegistry() {
   const { counts } = useCounts()
+  const eligibility = useEligibilityReport()
   const [rows, setRows] = useState<Pet[]>([])
   const [filter, setFilter] = useState('all')
+  const [query, setQuery] = useState('')
+  const [page, setPage] = useState(0)
+  const [total, setTotal] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   useEffect(() => {
-    supabase.from('pets').select('*').order('created_at', { ascending: false })
-      .then(({ data }) => setRows((data || []) as Pet[]))
-  }, [])
-  const shown = rows.filter(p => {
-    if (filter === 'pending') return p.registry_status === 'pending'
-    if (filter === 'shelter') return p.source === 'shelter'
-    if (filter === 'owner') return p.source === 'owner'
-    return true
-  })
+    let current = true
+    setLoading(true)
+    setError(null)
+    void (async () => {
+      try {
+        const result = await fetchRegistryPage({ page, search: query,
+          status: filter === 'pending' ? 'pending' : undefined,
+          source: filter === 'shelter' || filter === 'owner' ? filter : undefined })
+        if (!current) return
+        if (result.error) throw result.error
+        const count = result.count || 0
+        const lastPage = Math.max(0, Math.ceil(count / REGISTRY_PAGE_SIZE) - 1)
+        setTotal(count)
+        if (page > lastPage) { setPage(lastPage); return }
+        setRows((result.data || []) as Pet[])
+      } catch (cause) {
+        if (current) { setError(explain(cause as { message?: string })); setRows([]); setTotal(0) }
+      } finally {
+        if (current) setLoading(false)
+      }
+    })()
+    return () => { current = false }
+  }, [filter, query, page])
   return (
     <OfficeShell counts={counts}>
       <div className="page-head">
@@ -541,8 +644,9 @@ export function OfficeRegistry() {
       </div>
       <div className="card">
         <form className="filters" onSubmit={e => e.preventDefault()}>
+        <Field label="Find a registered pet"><input type="search" value={query} onChange={e => { setQuery(e.target.value); setPage(0) }} placeholder="Name, PET ID, breed or species" /></Field>
         <Field label="Show">
-          <select value={filter} onChange={e => setFilter(e.target.value)}>
+          <select value={filter} onChange={e => { setFilter(e.target.value); setPage(0) }}>
             <option value="all">Everything</option>
             <option value="pending">Awaiting verification</option>
             <option value="shelter">Shelter custody</option>
@@ -550,22 +654,27 @@ export function OfficeRegistry() {
           </select>
         </Field>
         </form>
+        {error ? <Notice kind="bad">Could not load the registry: {error}</Notice> : null}
+        {loading ? <p role="status">Loading registered pets…</p> : !error && !rows.length ? <Empty>No registered pets match these filters.</Empty> : !error ? <>
         <div className="table-wrap">
-          <table className="tbl">
-            <thead><tr><th>Pet</th><th>Tag</th><th>Status</th><th>Custody</th><th>Rabies</th></tr></thead>
+          <table className="tbl registry-table">
+            <thead><tr><th>Pet</th><th>PET ID</th><th>Status</th><th>Custody</th><th>Rabies</th><th>Adoption eligibility</th></tr></thead>
             <tbody>
-              {shown.map(p => (
+              {rows.map(p => (
                 <tr key={p.id}>
                   <td><div className="table-pet"><div className="avatar"><Photo url={p.photo_url} name={p.name} /></div><div><Link to={'/office/pets/' + p.id}>{p.name}</Link><div className="sub">{petLine(p)}</div></div></div></td>
-                  <td className="mono">{p.qr_slug}</td>
+                  <td><PetCode code={p.qr_slug} compact /></td>
                   <td>{registryPill(p.registry_status)}</td>
                   <td>{sourceLabel(p.source)}</td>
                   <td>{p.rabies_vaccinated ? fmtDate(p.rabies_vaccinated_on) : '—'}</td>
+                  <td><Link to={`/office/pets/${p.id}#adoption-eligibility`}>{eligibility.report?.find(row => row.pet_id === p.id)?.eligible ? 'Eligible' : 'Review eligibility'}</Link></td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+        <Pagination label="Full registry" page={page} pageSize={REGISTRY_PAGE_SIZE} total={total} onChange={setPage} />
+        </> : null}
       </div>
     </OfficeShell>
   )
@@ -581,12 +690,12 @@ export function OfficePet() {
   const [corrections, setCorrections] = useState<VisitCorrection[]>([])
   const [listing, setListing] = useState<Listing | null>(null)
   const [transfers, setTransfers] = useState<AdoptionRecord[]>([])
-  const [photoBusy, setPhotoBusy] = useState(false)
+  const [detailsBusy, setDetailsBusy] = useState(false)
 
   const load = useCallback(() => {
     if (!id) return
     supabase.from('pets').select('*').eq('id', id).maybeSingle().then(({ data }) => setPet(data as Pet | null))
-    supabase.from('visits').select('*').eq('pet_id', id).order('visit_date', { ascending: false })
+    supabase.from('visits').select('*').eq('pet_id', id).order('visit_date', { ascending: false }).order('created_at', { ascending: false })
       .then(async ({ data }) => {
         const records = (data || []) as Visit[]
         setVisits(records)
@@ -614,23 +723,32 @@ export function OfficePet() {
     if (error) bad(explain(error)); else { ok('Public health flags saved.'); load() }
   }
 
-  async function savePhoto(e: FormEvent<HTMLFormElement>) {
+  async function savePetDetails(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     if (!pet || !profile) return
-    const form = e.currentTarget
-    const file = new FormData(form).get('photo') as File | null
-    if (!file?.size) { bad('Choose a pet photo first.'); return }
-    setPhotoBusy(true)
+    const f = new FormData(e.currentTarget)
+    setDetailsBusy(true)
     try {
-      const photo_url = await uploadPetPhoto(profile.id, file)
-      const { error } = await supabase.from('pets').update({ photo_url }).eq('id', pet.id)
-      if (error) throw error
-      ok('Pet photo saved in the registry.')
-      form.reset()
+      const file = f.get('photo') as File | null
+      const photo_url = file?.size ? await uploadPetPhoto(profile.id, file) : pet.photo_url
+      const { data, error } = await supabase.from('pets').update({
+        name: String(f.get('name') || '').trim(),
+        species: f.get('species'),
+        breed: String(f.get('breed') || '').trim() || null,
+        sex: f.get('sex'), size: f.get('size'),
+        birth_date: f.get('birth_date'),
+        weight_kg: f.get('weight_kg') ? Number(f.get('weight_kg')) : null,
+        color: String(f.get('color') || '').trim() || null,
+        markings: String(f.get('markings') || '').trim() || null,
+        about: String(f.get('about') || '').trim() || null,
+        sterilized: f.get('sterilized') === 'on', photo_url
+      }).eq('id', pet.id).select('id').single()
+      if (error || !data) throw error || new Error('Pet details were not updated.')
+      ok('Pet details updated. The change is recorded in the pet’s history.')
       load()
     } catch (cause) {
       bad(explain(cause as { message?: string; code?: string }))
-    } finally { setPhotoBusy(false) }
+    } finally { setDetailsBusy(false) }
   }
 
   async function correct(v: Visit) {
@@ -644,6 +762,11 @@ export function OfficePet() {
     if (error) bad(explain(error)); else { ok('Correction saved.'); load() }
   }
 
+  async function correctClearance(v: Visit, clearance_status: Visit['clearance_status'], note: string) {
+    const { error } = await supabase.from('visits').update({ clearance_status, correction_note: note }).eq('id', v.id)
+    if (error) bad(explain(error)); else { ok('Adoption clearance corrected.'); load() }
+  }
+
   if (!pet) return <OfficeShell counts={counts}><Empty>No such record.</Empty></OfficeShell>
 
   return (
@@ -655,7 +778,7 @@ export function OfficePet() {
           <div>
             <h1>{pet.name}</h1>
             <div className="sub">{petLine(pet)}</div>
-            <div className="pet-id">{pet.qr_slug}</div>
+            <PetCode code={pet.qr_slug} />
             <div className="btn-row" style={{ marginTop: '.4rem' }}>
               {registryPill(pet.registry_status)}
               {listing ? listingPill(listing.status) : <span className="pill">Not listed</span>}
@@ -668,14 +791,16 @@ export function OfficePet() {
         <div>
           <div className="card">
             <h2>Visit history</h2>
-            <VisitHistory visits={visits} petName={pet.name} canCorrect={v => void correct(v)} />
+            <VisitHistory visits={visits} petName={pet.name} canCorrect={v => void correct(v)} onCorrectClearance={correctClearance} />
           </div>
+          {profile ? <VisitForm pet={pet} profile={profile} onSaved={load} /> : null}
           {corrections.length ? <div className="card">
             <h2>Visit correction audit</h2>
             <ul className="timeline">{corrections.map(c => <li key={c.id}>
               <strong>{fmtDate(c.corrected_at)}</strong> · {c.correction_note}
               <div className="sub">Before: {c.previous_record.summary}</div>
               <div className="sub">After: {c.corrected_record.summary}</div>
+              {c.previous_record.clearance_status !== c.corrected_record.clearance_status ? <div className="sub">Clearance: {c.previous_record.clearance_status || 'Pending'} → {c.corrected_record.clearance_status}</div> : null}
             </li>)}</ul>
           </div> : null}
           <div className="card">
@@ -691,6 +816,7 @@ export function OfficePet() {
           </div>
         </div>
         <div>
+          <PetEligibilityEditor pet={pet} latestClearance={visits[0]?.clearance_status ?? null} onSaved={message => { ok(message); load() }} />
           <MatchTraitsEditor petId={pet.id} onSaved={ok} />
           <div className="card">
             <h2>Pet record</h2>
@@ -703,16 +829,7 @@ export function OfficePet() {
               <dt>Breed</dt><dd>{pet.breed || 'Unknown'}</dd>
               <dt>Sterilized</dt><dd>{pet.sterilized ? 'Yes' : 'No'}</dd>
             </dl>
-            <form onSubmit={savePhoto} className="record-photo-form">
-              <Field label={pet.photo_url ? 'Replace pet photo' : 'Add a pet photo'}>
-                <input name="photo" type="file" accept="image/jpeg,image/png,image/webp" required />
-              </Field>
-              <button className="btn btn-sm btn-outline" type="submit" disabled={photoBusy}>{photoBusy ? 'Uploading…' : 'Save photo'}</button>
-            </form>
           </div>
-          {pet.registry_status === 'approved' ? (
-            <div className="card"><h2>QR</h2><QrBlock value={qrUrl(pet.qr_slug)} /></div>
-          ) : null}
           <form className="card" onSubmit={saveFlags}>
             <h2>Public health flags</h2>
             <label className="field" style={{ fontWeight: 400 }}>
@@ -726,17 +843,34 @@ export function OfficePet() {
           </form>
         </div>
       </div>
-      {profile ? <details className="card visit-entry-disclosure">
-        <summary>Add a veterinary visit</summary>
-        <VisitForm pet={pet} profile={profile} onSaved={load} embedded />
-      </details> : null}
+      <form className="card form-panel pet-details-form" key={pet.id + pet.updated_at} onSubmit={savePetDetails}>
+        <h2>Edit pet details</h2>
+        <div className="grid pet-details-grid">
+          <Field label="Name"><input name="name" required defaultValue={pet.name} /></Field>
+          <Field label="Species"><select name="species" defaultValue={pet.species}><option value="dog">Dog</option><option value="cat">Cat</option><option value="other">Other</option></select></Field>
+          <Field label="Breed"><input name="breed" defaultValue={pet.breed || ''} /></Field>
+          <Field label="Sex"><select name="sex" defaultValue={pet.sex}><option value="male">Male</option><option value="female">Female</option></select></Field>
+          <Field label="Size"><select name="size" defaultValue={pet.size}><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select></Field>
+          <Field label="Birthday"><input type="date" name="birth_date" required max={new Date().toISOString().slice(0, 10)} defaultValue={pet.birth_date} /></Field>
+          <Field label="Current weight (kg)"><input type="number" name="weight_kg" min="0.01" max="500" step="0.01" defaultValue={pet.weight_kg ?? ''} /></Field>
+          <Field label="Color"><input name="color" defaultValue={pet.color || ''} /></Field>
+          <Field label="Markings"><input name="markings" defaultValue={pet.markings || ''} /></Field>
+          <Field label={pet.photo_url ? 'Replace pet photo' : 'Add a pet photo'}><input type="file" name="photo" accept="image/jpeg,image/png,image/webp" /></Field>
+        </div>
+        <div className="pet-form-tail">
+          <Field label="About this pet"><textarea name="about" defaultValue={pet.about || ''} /></Field>
+          <div className="pet-form-actions">
+            <label className="check-row"><input type="checkbox" name="sterilized" defaultChecked={pet.sterilized} /> Sterilized</label>
+            <button className="btn btn-outline" type="submit" disabled={detailsBusy}>{detailsBusy ? 'Saving…' : 'Save pet details'}</button>
+          </div>
+        </div>
+      </form>
     </OfficeShell>
   )
 }
 
 export function OfficeAccounts() {
   const { counts } = useCounts()
-  const { ok, bad, toasts } = useToasts()
   const [rows, setRows] = useState<Profile[]>([])
   const [search, setSearch] = useState('')
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -749,44 +883,29 @@ export function OfficeAccounts() {
   }, [])
   useEffect(() => { load() }, [load])
 
-  async function setActive(p: Profile, is_active: boolean) {
-    const { error } = await supabase.from('profiles').update({ is_active }).eq('id', p.id)
-    if (error) bad(explain(error)); else { ok(is_active ? 'Account enabled.' : 'Account disabled.'); load() }
-  }
-
   const visibleRows = rows.filter(p =>
-    `${p.name} ${p.contact || ''} ${p.clinic_name || ''} ${p.role}`
+    `${p.name} ${p.contact || ''} ${p.role}`
       .toLowerCase().includes(search.trim().toLowerCase()))
 
   return (
     <OfficeShell counts={counts}>
-      <ToastHost toasts={toasts} />
       <div className="page-head">
         <h1>Accounts</h1>
-        <p className="sub">Open an account to see its profile, submitted ID, and registered pets. Veterinarian access is managed in <Link to="/office/verifications">ID reviews</Link>.</p>
+        <p className="sub">Open an account to see its profile, submitted ID, and registered pets.</p>
       </div>
       {loadError ? <div className="notice notice-bad" role="alert">Could not load accounts: {loadError}</div> : null}
       <div className="card">
-        <label className="field office-account-search"><span className="lbl">Find an account</span><input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Name, phone, clinic, or role" /></label>
+        <label className="field office-account-search"><span className="lbl">Find an account</span><input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Name, phone, or role" /></label>
         <div className="table-wrap">
           <table className="tbl">
-            <thead><tr><th>Name</th><th>Role</th><th>Clinic</th><th>Active</th><th>Profile</th><th>Access</th></tr></thead>
+            <thead><tr><th>Name</th><th>Role</th><th>Active</th><th>Profile</th></tr></thead>
             <tbody>
               {visibleRows.map(p => (
                 <tr key={p.id}>
                   <td>{p.name}<div className="sub">{p.contact || p.id.slice(0, 8)}</div></td>
                   <td>{p.role}</td>
-                  <td>{p.clinic_name || '—'}</td>
                   <td>{p.is_active ? 'Yes' : 'No'}</td>
                   <td><Link className="btn btn-sm btn-outline" to={`/office/accounts/${p.id}`}>View profile</Link></td>
-                  <td className="btn-row">
-                    {p.role === 'vet' && p.is_active ? (
-                      <button className="btn btn-sm btn-danger" type="button" onClick={() => void setActive(p, false)}>Disable</button>
-                    ) : null}
-                    {p.role === 'vet' && !p.is_active ? (
-                      <button className="btn btn-sm btn-outline" type="button" onClick={() => void setActive(p, true)}>Enable</button>
-                    ) : null}
-                  </td>
                 </tr>
               ))}
             </tbody>

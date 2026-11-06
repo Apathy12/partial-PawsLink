@@ -141,7 +141,7 @@ The two fixed brand colors are deep green and lime; warm neutrals and quiet sage
 **Display Font:** Fraunces (Georgia fallback), loaded in index.html at weights 600–900.
 
 **Body Font:** Source Sans 3 (Arial fallback), loaded at weights 400–700.
-**Data Font:** System monospace for IDs, dates, QR URLs, and compact counts only.
+**Data Font:** System monospace for pet IDs/codes, dates, and compact counts only.
 
 Fraunces gives welcome messages, section titles, pet names, and the wordmark a friendly, editorial voice. Source Sans 3 keeps instructions, controls, and dense records legible.
 
@@ -157,11 +157,18 @@ Fraunces gives welcome messages, section titles, pet names, and the wordmark a f
 
 ## Layout
 
-The content shell tops out at 1240px plus its side padding; common forms top out at 720px. The public home joins the header to a two-column green hero with copy on the left and a framed pet photograph on the right. The composition stacks at 900px and the photo shifts to a 4:3 frame at 600px. The learning hero uses the same copy-and-photo relationship.
+CAVD and veterinary workspaces use a 232px fixed deep-green sidebar from 1100px upward, with existing role navigation and identity grouped there. Below that width they retain the shared top navigation. Dashboard content follows welcome/current work, real scoped counts, review queues or recent visits, and full records. CAVD queues stack below 1600px so decision tables keep readable column widths; wide screens can pair the supporting queues. Tables scroll inside their panels, while PET ID badges stay on one line. Veterinary metrics describe the displayed visit set rather than claiming clinic-wide statistics. Existing colors, type, role permissions, routes and actions are retained.
+
+
+The content shell tops out at 1240px plus its side padding; common forms top out at 720px. Veterinary pet-edit and visit-entry forms instead fill the record-panel width, with four short-field columns at 880px of available form space, two at 640px, and one below that. Longer notes retain writing room across fewer columns. Dashboard is the first veterinary navigation item and the default verified-vet destination; Lookup remains available next to it. The public home joins the header to a two-column green hero with copy on the left and a framed pet photograph on the right. The composition stacks at 900px and the photo shifts to a 4:3 frame at 600px. The learning hero uses the same copy-and-photo relationship.
 
 Public sections have open vertical rhythm (roughly 60–78px between large groups), while cards commonly use 20–30px inside. Pet listings use a three-column desktop grid, two columns on smaller screens, and 4:3 image crops. Owner adoption paths move from multiple columns to one column on phones. The office and vet layouts keep compact tables and result rows; on narrow screens, wide tables scroll horizontally with a visible swipe cue, and navigation with more than three destinations becomes a disclosure menu.
 
 **The Density Follows Task Rule.** Give discovery and learning generous space; keep review queues, forms, and records compact enough to scan without losing the shared palette or type.
+
+On owner/adopter pages at 760px and below, bottom navigation replaces the header section menu. The compact brand, theme toggle and logout controls remain at the top. Wider screens retain their full header navigation; CAVD and veterinary navigation retain their role layouts.
+
+Registry lists show ten pets per page with a shared Previous / page-and-range / Next control. The user Adoption page also shows up to six open listings per page, applying all search/filters across the full available feed before slicing the page; filter changes return to page one. Full registry and veterinary Lookup filter the complete authorized registry before fetching a page; Lookup includes approved pets with no prior visit. Find My Match groups the animal, children-at-home and other-pets-at-home dropdowns first, followed by a divider and seven discrete native sliders, each showing its current named choice, endpoint labels and tick marks. The dropdown row stacks on phones. Visit-history action labels stay on one line, with a filled Viewing record state shared across role pages.
 
 ## Elevation & Depth
 

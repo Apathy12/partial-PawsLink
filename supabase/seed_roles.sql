@@ -1,4 +1,4 @@
--- Run this in the Supabase SQL editor AFTER the four demo users exist in
+-- Run this in the Supabase SQL editor AFTER the three demo users exist in
 -- Authentication (either created by `npm run seed` or by hand).
 -- It only assigns roles. It never writes passwords.
 
@@ -14,13 +14,8 @@ update public.profiles
  where id = (select id from auth.users where email = 'adopter@demo.local');
 
 update public.profiles
-   set role = 'vet', name = 'Dr. Liza Ramos', contact = '085 555 0200',
-       clinic_name = 'Butuan Pet Clinic', is_active = true, verification_exempt = true
- where id = (select id from auth.users where email = 'vet@demo.local');
-
-update public.profiles
    set role = 'cavd', name = 'CAVD Registry Desk', contact = '(085) 342-1111',
-       clinic_name = 'CAVD Animal Health Unit', is_active = true, verification_exempt = true
+       clinic_name = 'CAVD Veterinary Clinic', is_active = true, verification_exempt = true
  where id = (select id from auth.users where email = 'cavd@demo.local');
 
 commit;

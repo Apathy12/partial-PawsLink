@@ -20,11 +20,11 @@ The adoption bridge is tied to CAVD's pet registry and review decisions. Matchin
 
 ## Operating Context
 
-The public can read care guidance and scan a tag. Signed-in owners and adopters use a mobile-friendly portal; veterinarians use clinic lookup and records; CAVD uses review queues and account records. The project is also shown through seeded demo accounts on GitHub Pages.
+The public can read care guidance and look up an approved pet record by its pet ID/code. Signed-in owners and adopters use a mobile-friendly portal; veterinarians use clinic lookup and records; CAVD uses review queues and account records. The project is also shown through seeded demo accounts on GitHub Pages.
 
 ## Capabilities and Constraints
 
-Preserve all current routes, content, forms, validation, permissions, account actions, Supabase interactions, and demo behavior during UI redesign. The existing site supports registration, QR records, education and quiz, adoption browsing, preference matching, applications, veterinary records, and CAVD review. This visual task covers every page. The site uses React, Vite, and Supabase.
+Preserve current content, forms, validation, permissions, account actions, Supabase interactions, and demo behavior during UI redesign. The site supports registration, PET ID lookup, education and quiz, public adoption browsing, optional preference matching with CAVD-configured weights, required adoption application forms from listings or matching results, veterinary records, and CAVD review. Strict adoption eligibility requires approved registration/listing, Available status, current vaccination, completed sterilization, behavioral clearance and recorded CAVD verification. Pet code lookup opens the public record; pet camera QR scanning and NFC are not used. The visual task covers every page. The site uses React, Vite, and Supabase.
 
 ## Brand Commitments
 

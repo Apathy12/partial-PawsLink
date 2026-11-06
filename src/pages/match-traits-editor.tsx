@@ -54,7 +54,7 @@ export function MatchTraitsEditor({ petId, onSaved }: { petId: string; onSaved: 
     else { setTraits(data as PetMatchTraits); onSaved('Matching traits saved for adopters.') }
   }
 
-  return <div className="card">
+  return <div className="card match-traits-card">
     <h2>Adopter matching traits</h2>
     <p className="sub">Record observed behavior and care needs. A pet needs these traits to receive a match score. Only CAVD staff can edit them.</p>
     {loading ? <p role="status">Loading traits…</p> : null}

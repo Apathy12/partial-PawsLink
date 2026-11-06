@@ -1,9 +1,9 @@
 /**
- * Creates the four demo accounts and assigns their roles.
+ * Creates the three demo accounts and assigns their roles.
  *
  *   npm run seed
  *
- * Reads VITE_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, and the four
+ * Reads VITE_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, and the three
  * DEMO_*_PASSWORD values from .env.local.
  * Safe to re-run: existing emails are reused, roles are reset.
  */
@@ -14,8 +14,7 @@ const service = process.env.SUPABASE_SERVICE_ROLE_KEY
 const ACCOUNTS = [
   { email: 'user@demo.local', passwordEnv: 'DEMO_USER_PASSWORD', name: 'Ana Reyes', role: 'user', contact: '0917 555 0101', clinic: null },
   { email: 'adopter@demo.local', passwordEnv: 'DEMO_ADOPTER_PASSWORD', name: 'Ben Santos', role: 'user', contact: '0918 555 0102', clinic: null },
-  { email: 'vet@demo.local', passwordEnv: 'DEMO_VET_PASSWORD', name: 'Dr. Liza Ramos', role: 'vet', contact: '085 555 0200', clinic: 'Butuan Pet Clinic' },
-  { email: 'cavd@demo.local', passwordEnv: 'DEMO_CAVD_PASSWORD', name: 'CAVD Registry Desk', role: 'cavd', contact: '(085) 342-1111', clinic: 'CAVD Animal Health Unit' }
+  { email: 'cavd@demo.local', passwordEnv: 'DEMO_CAVD_PASSWORD', name: 'CAVD Registry Desk', role: 'cavd', contact: '(085) 342-1111', clinic: 'CAVD Veterinary Clinic' }
 ]
 
 if (!url || !service) {

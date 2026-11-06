@@ -16,8 +16,7 @@ const idLabels: Record<VerificationRequest['id_type'], string> = {
   national_id: 'National ID',
   drivers_license: 'Driver’s license',
   passport: 'Passport',
-  other_government_id: 'Other government ID',
-  prc_id: 'PRC professional ID'
+  other_government_id: 'Other government ID'
 }
 
 export function OfficeAccount() {
@@ -48,6 +47,15 @@ export function OfficeAccount() {
       setAuthSummary(((authResult.data as AuthSummary[] | null) || [])[0] || null)
       setRequests((requestResult.data || []) as VerificationRequest[])
       setPets((petResult.data || []) as Pet[])
+      const signedDocuments = await Promise.all(((requestResult.data || []) as VerificationRequest[])
+        .filter(request => request.id_path)
+        .map(async request => {
+          const { data } = await supabase.storage.from('identity-documents')
+            .createSignedUrl(request.id_path!, 3600)
+          return data?.signedUrl ? [request.id, data.signedUrl] as const : null
+        }))
+      if (!active) return
+      setDocumentLinks(Object.fromEntries(signedDocuments.filter((entry): entry is readonly [string, string] => entry !== null)))
       setAuthError(authResult.error
         ? 'Email details are unavailable. Ask the administrator to apply migration 0010.' : null)
       const otherErrors = [profileResult.error, requestResult.error, petResult.error]
@@ -63,27 +71,17 @@ export function OfficeAccount() {
 
   async function viewDocument(request: VerificationRequest) {
     if (!request.id_path) return
-    const tab = window.open('', '_blank')
-    if (tab) tab.opener = null
     setOpeningId(request.id)
     setDocumentError(null)
     try {
       const { data, error: signedError } = await supabase.storage.from('identity-documents')
-        .createSignedUrl(request.id_path, 60)
+        .createSignedUrl(request.id_path, 3600)
       if (signedError || !data?.signedUrl) {
-        tab?.close()
         setDocumentError(signedError ? explain(signedError) : 'The private ID could not be opened. Please try again.')
         return
       }
       setDocumentLinks(current => ({ ...current, [request.id]: data.signedUrl }))
-      if (tab) {
-        try { tab.location.replace(data.signedUrl) }
-        catch { tab.close(); setDocumentError('Your browser blocked the ID tab. Use the private link below.') }
-      } else {
-        setDocumentError('Your browser blocked the ID tab. Use the private link below.')
-      }
     } catch (cause) {
-      tab?.close()
       setDocumentError(explain(cause as { message?: string }))
     } finally {
       setOpeningId(null)
@@ -96,10 +94,7 @@ export function OfficeAccount() {
 
   const avatarUrl = person.avatar_path
     ? supabase.storage.from('profile-photos').getPublicUrl(person.avatar_path).data.publicUrl : null
-  const accountType = person.role === 'cavd' ? 'CAVD office' : person.registration_kind === 'vet' ? 'Veterinarian / clinic' : 'Pet owner / adopter'
-  const currentAccess = person.registration_kind === 'vet' && person.role === 'user'
-    ? 'Veterinary application awaiting approval' : person.role === 'cavd' ? 'CAVD staff'
-      : person.role === 'vet' ? 'Veterinarian' : 'Pet owner / adopter'
+  const accountType = person.role === 'cavd' ? 'CAVD office' : 'Pet owner / adopter'
 
   return <OfficeShell>
     <p className="sub"><Link to="/office/accounts">← Back to accounts</Link></p>
@@ -120,8 +115,6 @@ export function OfficeAccount() {
           <dt>Birthday</dt><dd>{person.birth_date ? fmtDate(person.birth_date) : 'Not recorded'}</dd>
           <dt>Location</dt><dd>{person.location || 'Not recorded'}</dd>
           <dt>Account type</dt><dd>{accountType}</dd>
-          <dt>Current access</dt><dd>{currentAccess}</dd>
-          {person.clinic_name ? <><dt>Clinic</dt><dd>{person.clinic_name}</dd></> : null}
           <dt>Registered</dt><dd>{fmtDate(person.created_at)}</dd>
           <dt>Last sign-in</dt><dd>{authError ? 'Unavailable' : fmtDate(authSummary?.last_sign_in_at)}</dd>
           <dt>Account ID</dt><dd className="mono">{person.id}</dd>
@@ -133,19 +126,18 @@ export function OfficeAccount() {
         <p className="sub">Documents are private. Open them only when needed for CAVD work.</p>
         {documentError ? <Notice kind="bad">{documentError}</Notice> : null}
         {requests.length ? <div className="office-account-ids">{requests.map(request => <article className="office-account-id" key={request.id}>
-          <h3>{idLabels[request.id_type]}</h3>
+          <h3>{idLabels[request.id_type] ?? 'Earlier ID'}</h3>
           <dl className="kv">
             <dt>Submitted</dt><dd>{fmtDate(request.created_at)}</dd>
             <dt>Status</dt><dd>{request.requested_role === 'user' && request.status === 'approved' && !request.reviewed_by ? 'Account activated' : request.status}</dd>
-            {request.clinic_name ? <><dt>Clinic</dt><dd>{request.clinic_name}</dd></> : null}
-            {request.prc_number ? <><dt>PRC number</dt><dd>{request.prc_number}</dd></> : null}
             {request.review_note ? <><dt>Decision note</dt><dd>{request.review_note}</dd></> : null}
           </dl>
           {request.id_path ? <div className="btn-row">
-            <button type="button" className="btn btn-sm btn-outline" disabled={openingId === request.id} onClick={() => void viewDocument(request)}>{openingId === request.id ? 'Opening…' : 'View private ID'}</button>
-            {documentLinks[request.id] ? <a href={documentLinks[request.id]} target="_blank" rel="noreferrer">Open ID again</a> : null}
+            {!documentLinks[request.id] ? <button type="button" className="btn btn-sm btn-outline" disabled={openingId === request.id} onClick={() => void viewDocument(request)}>{openingId === request.id ? 'Loading ID…' : 'View submitted ID'}</button> : <a className="btn btn-sm btn-outline" href={documentLinks[request.id]} target="_blank" rel="noreferrer">Open ID in another tab</a>}
           </div> : <p className="hint">{request.status === 'rejected' ? 'Rejected ID file was deleted.' : 'No ID file is available.'}</p>}
-          {request.id_path && documentLinks[request.id] && !request.id_path.toLowerCase().endsWith('.pdf') ? <img className="office-account-id-preview" src={documentLinks[request.id]} alt={`${idLabels[request.id_type]} submitted by ${person.name}`} /> : null}
+          {request.id_path && documentLinks[request.id] ? request.id_path.toLowerCase().endsWith('.pdf')
+            ? <iframe className="office-account-id-preview office-account-id-pdf" src={documentLinks[request.id]} title={`${idLabels[request.id_type]} submitted by ${person.name}`} />
+            : <img className="office-account-id-preview" src={documentLinks[request.id]} alt={`${idLabels[request.id_type]} submitted by ${person.name}`} /> : null}
         </article>)}</div> : <Empty>{person.verification_exempt ? 'No ID submission is on file for this existing or exempt account.' : 'No ID has been submitted yet.'}</Empty>}
       </section>
     </div>

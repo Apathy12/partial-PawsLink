@@ -4,14 +4,17 @@ import { useAuth } from '../lib/auth'
 import { EducationHome } from './education'
 import { explain, supabase } from '../lib/supabase'
 import { useSavedListings } from '../lib/saved-listings'
-import { stageLabel } from '../lib/adoption-application'
+import { useListingApplications } from '../lib/listing-applications'
+import { useMyPetIds } from '../lib/my-pets'
+import { eligibilityReasons, type AdoptionChecks } from '../lib/eligibility'
+import { applicationActionLabel, applicationPath, stageLabel } from '../lib/adoption-application'
 import { uploadPetPhoto } from '../lib/photos'
 import { VisitHistory } from '../lib/visits'
-import { ageLabel, fmtDate, petLine, qrUrl, sexLabel, sourceLabel, speciesLabel } from '../lib/format'
+import { ageLabel, fmtDate, petLine, sexLabel, sourceLabel, speciesLabel } from '../lib/format'
 import type { AdoptionRecord, Application, Listing, Pet, PublicListing, Visit } from '../lib/types'
 import {
-  Empty, Field, ListingCard, Notice, Photo, Pill, QrBlock, SaveListingButton, Scanner, Shell,
-  listingPill, registryPill, sourcePill, useToasts, ToastHost
+  ApplicationTracker, CardSkeletons, Empty, Field, ListingCard, Notice, Pagination, PetCode, Photo, Pill, SaveListingButton, Shell,
+  listingPill, originBadge, registryPill, useToasts, ToastHost
 } from '../ui'
 
 export function UserShell({ children, showIdentity = false }: { children: ReactNode; showIdentity?: boolean }) {
@@ -28,8 +31,14 @@ export function UserShell({ children, showIdentity = false }: { children: ReactN
         { to: '/app/pets', label: 'My pets', end: true },
         { to: '/app/pets/new', label: 'Register a pet' },
         { to: '/app/bridge', label: 'Adoption' },
-        { to: '/app/profile', label: 'My profile' },
-        { to: '/app/scan', label: 'Scan QR' }
+        { to: '/app/profile', label: 'My profile' }
+      ]}
+      tabs={[
+        { to: '/app', label: 'Home', end: true, icon: 'home' },
+        { to: '/app/pets', label: 'My pets', icon: 'pets' },
+        { to: '/app/bridge', label: 'Adopt', icon: 'adopt' },
+        { to: '/app/applications', label: 'Applications', icon: 'apps' },
+        { to: '/app/profile', label: 'Profile', icon: 'profile' }
       ]}
     >{children}</Shell>
   )
@@ -49,9 +58,11 @@ export function UserPets() {
     <UserShell>
       <div className="page-head">
         <h1>My pets</h1>
-        <p className="sub">Registration is the entry point. A pet is not adoptable and has no public QR until CAVD verifies it.</p>
+        <p className="sub">Registration is the entry point. Each pet gets a code, but its public record and adoption listing require CAVD approval.</p>
       </div>
-      <Link className="btn" to="/app/pets/new">Register a pet</Link>
+      <div className="btn-row">
+        <Link className="btn" to="/app/pets/new">Register a pet</Link>
+      </div>
       <div style={{ height: '1rem' }} />
       {pets.length === 0 ? <Empty>Nothing registered yet.</Empty> : (
         <div className="pet-list">
@@ -61,10 +72,10 @@ export function UserPets() {
               <div className="pet-list-main">
                 <h2 className="pet-name"><Link to={'/app/pets/' + p.id}>{p.name}</Link></h2>
                 <div className="pet-meta">{petLine(p)}</div>
+                <PetCode code={p.qr_slug} compact />
                 <div>{registryPill(p.registry_status)}</div>
                 <Link className="record-link" to={'/app/pets/' + p.id}>Open record</Link>
               </div>
-              {p.registry_status === 'approved' ? <div className="qr-block"><QrBlock value={qrUrl(p.qr_slug)} /><div className="qr-caption">QR available</div></div> : null}
             </article>
           ))}
         </div>
@@ -106,7 +117,7 @@ export function UserPetNew() {
         photo_url
       }).select('id').single()
       if (error) throw error
-      ok('Submitted. CAVD must verify the record before it can carry a public QR.')
+      ok('Submitted. The pet code is ready; CAVD must verify the record before it becomes public.')
       nav('/app/pets/' + data.id)
     } catch (err) {
       bad(explain(err as { message?: string }))
@@ -120,7 +131,7 @@ export function UserPetNew() {
       <ToastHost toasts={toasts} />
       <div className="page-head">
         <h1>Register a pet</h1>
-        <p className="sub">The record starts pending. It is not listed and the QR is not public until CAVD approves it.</p>
+        <p className="sub">The record starts pending and receives a pet code. It is not publicly visible or listed until CAVD approves it.</p>
       </div>
       <form className="card form-panel" onSubmit={onSubmit}>
         <Field label="Name"><input name="name" required /></Field>
@@ -160,17 +171,20 @@ export function UserPetDetail() {
   const [transfers, setTransfers] = useState<AdoptionRecord[]>([])
   const [notes, setNotes] = useState('')
   const [busy, setBusy] = useState(false)
+  const [adoptionChecks, setAdoptionChecks] = useState<AdoptionChecks | null>(null)
 
   const load = useCallback(() => {
     if (!id) return
     supabase.from('pets').select('*').eq('id', id).maybeSingle()
       .then(({ data }) => setPet(data as Pet | null))
-    supabase.from('visits').select('*').eq('pet_id', id).order('visit_date', { ascending: false })
+    supabase.from('visits').select('*').eq('pet_id', id).order('visit_date', { ascending: false }).order('created_at', { ascending: false })
       .then(({ data }) => setVisits((data || []) as Visit[]))
     supabase.from('listings').select('*').eq('pet_id', id).in('status', ['pending', 'approved'])
       .maybeSingle().then(({ data }) => setListing((data as Listing) ?? null))
     supabase.from('adoption_records').select('*').eq('pet_id', id).order('approved_at', { ascending: false })
       .then(({ data }) => setTransfers((data || []) as AdoptionRecord[]))
+    supabase.from('pet_adoption_checks').select('*').eq('pet_id', id).maybeSingle()
+      .then(({ data }) => setAdoptionChecks(data as AdoptionChecks | null))
   }, [id])
 
   useEffect(() => { load() }, [load])
@@ -200,7 +214,7 @@ export function UserPetDetail() {
           <div>
             <h1>{pet.name}</h1>
             <div className="sub">{petLine(pet)}</div>
-            <div className="pet-id">{pet.qr_slug}</div>
+            <PetCode code={pet.qr_slug} />
             <div className="btn-row" style={{ marginTop: '.4rem' }}>
               {registryPill(pet.registry_status)}
               {listing ? listingPill(listing.status) : <Pill>Not listed</Pill>}
@@ -208,7 +222,7 @@ export function UserPetDetail() {
           </div>
         </div>
         {pet.registry_status === 'rejected' ? <Notice kind="bad">Rejected: {pet.registry_note || 'See CAVD.'}</Notice> : null}
-        {pet.registry_status === 'pending' ? <Notice kind="warn">Waiting for CAVD. A QR is issued after approval.</Notice> : null}
+        {pet.registry_status === 'pending' ? <Notice kind="warn">Waiting for CAVD. The pet code is ready; the public record opens after approval.</Notice> : null}
       </div>
 
       <div className="split">
@@ -238,16 +252,17 @@ export function UserPetDetail() {
             </form>
           ) : null}
           {listing?.status === 'pending' ? <Notice kind="warn">Listing request is with CAVD. It is not on the public bridge.</Notice> : null}
+          {listing?.status === 'approved' && eligibilityReasons(pet, adoptionChecks, visits[0]?.clearance_status).length ? <Notice kind="warn">The listing is approved, but this pet is hidden from adoption while CAVD completes or renews its eligibility review. Availability, current vaccination, completed sterilization, behavioral clearance and a Cleared veterinary visit are required.</Notice> : null}
         </div>
         <div>
           {pet.registry_status === 'approved' ? (
             <div className="card">
-              <h2>QR tag</h2>
-              <QrBlock value={qrUrl(pet.qr_slug)} />
-              <p className="sub" style={{ marginTop: '.6rem' }}>Opens the public profile only.</p>
+              <h2>Public pet record</h2>
+              <p className="sub">The public record shows approved details only.</p>
+              <Link className="btn btn-outline" to={'/p/' + pet.qr_slug}>Open public record</Link>
             </div>
           ) : (
-            <div className="card"><h2>QR tag</h2><p className="sub">Issued when CAVD verifies the record.</p></div>
+            <div className="card"><h2>Public pet record</h2><p className="sub">Available after CAVD verifies this registration.</p></div>
           )}
           <div className="card">
             <h2>Public health flags</h2>
@@ -267,30 +282,49 @@ export function UserPetDetail() {
   )
 }
 
+const ADOPTION_PAGE_SIZE = 6
+
 export function UserBridge() {
   const { profile } = useAuth()
   const profileId = profile?.id
   const saved = useSavedListings(profileId)
+  const requests = useListingApplications(profileId)
   const [rows, setRows] = useState<PublicListing[]>([])
   const [myPets, setMyPets] = useState<Pet[]>([])
   const [myListings, setMyListings] = useState<Listing[]>([])
+  const [myAdoptionChecks, setMyAdoptionChecks] = useState<AdoptionChecks[]>([])
+  const [myLatestVisits, setMyLatestVisits] = useState<Map<string, Visit['clearance_status']>>(new Map())
   const [myPetsLoading, setMyPetsLoading] = useState(true)
   const [myPetsError, setMyPetsError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [q, setQ] = useState('')
   const [species, setSpecies] = useState('all')
   const [size, setSize] = useState('all')
   const [sex, setSex] = useState('all')
   const [age, setAge] = useState('all')
+  const [page, setPage] = useState(0)
 
   useEffect(() => {
-    supabase.from('public_listings').select('*').order('listed_at', { ascending: false })
-      .then(({ data, error: loadError }) => {
-        if (loadError) setError(explain(loadError))
-        else setRows((data || []) as PublicListing[])
-        setLoading(false)
-      })
+    let current = true
+    void (async () => {
+      try {
+        const listings: PublicListing[] = []
+        for (let offset = 0; ; offset += 500) {
+          const { data, error: loadError } = await supabase.from('public_listings').select('*')
+            .order('listed_at', { ascending: false }).order('listing_id').range(offset, offset + 499)
+          if (!current) return
+          if (loadError) throw loadError
+          listings.push(...(data || []) as PublicListing[])
+          if (!data || data.length < 500) break
+        }
+        if (current) setRows(listings)
+      } catch (cause) {
+        if (current) setError(explain(cause as { message?: string }))
+      } finally {
+        if (current) setLoading(false)
+      }
+    })()
+    return () => { current = false }
   }, [])
 
   useEffect(() => {
@@ -307,6 +341,12 @@ export function UserBridge() {
       if (pets.length) {
         const { data: activeListings } = await supabase.from('listings').select('*').in('pet_id', pets.map(pet => pet.id)).in('status', ['pending', 'approved'])
         setMyListings((activeListings || []) as Listing[])
+        const { data: checkRows } = await supabase.from('pet_adoption_checks').select('*').in('pet_id', pets.map(pet => pet.id))
+        setMyAdoptionChecks((checkRows || []) as AdoptionChecks[])
+        const { data: visitRows } = await supabase.from('visits').select('pet_id,clearance_status').in('pet_id', pets.map(pet => pet.id))
+          .order('visit_date').order('created_at')
+        // Rows arrive oldest first, so each pet's latest visit is the one that stays.
+        setMyLatestVisits(new Map(((visitRows || []) as Pick<Visit, 'pet_id' | 'clearance_status'>[]).map(row => [row.pet_id, row.clearance_status])))
       }
       setMyPetsLoading(false)
     })()
@@ -321,19 +361,22 @@ export function UserBridge() {
       const g = months < 12 ? 'baby' : months < 36 ? 'young' : months < 84 ? 'adult' : 'senior'
       if (g !== age) return false
     }
-    if (q) {
-      const hay = (r.name + ' ' + (r.breed || '') + ' ' + r.qr_slug).toLowerCase()
-      if (!hay.includes(q.toLowerCase())) return false
-    }
     return true
   })
+  const activePage = Math.min(page, Math.max(0, Math.ceil(shown.length / ADOPTION_PAGE_SIZE) - 1))
+  const visibleListings = shown.slice(activePage * ADOPTION_PAGE_SIZE, (activePage + 1) * ADOPTION_PAGE_SIZE)
+
+  function changePage(next: number) {
+    setPage(next)
+    document.getElementById('open-for-adoption')?.scrollIntoView({ block: 'start' })
+  }
 
   return (
     <UserShell>
       <div className="page-head">
         <span className="step-label">One account for pet owners and adopters</span>
         <h1>Adoption</h1>
-        <p className="sub">Browse available pets, use Find My Pet Match to begin an application, or request a new home for a pet you own.</p>
+        <p className="sub">Complete an adoption form for an available pet, explore Find My Pet Match, or request a new home for a pet you own.</p>
       </div>
       <div className="adoption-paths" aria-label="Adoption actions">
         <Link className="quicklink" to="/app/match"><span className="quicklink-icon" aria-hidden="true">★</span><span><strong>Find My Pet Match</strong><small>Answer 10 questions, see ranked pets, and apply from a match.</small></span><span aria-hidden="true">→</span></Link>
@@ -342,26 +385,25 @@ export function UserBridge() {
         <Link className="quicklink" to="/app/applications"><span className="quicklink-icon" aria-hidden="true">✉</span><span><strong>My applications</strong><small>See the status of pets you applied for.</small></span><span aria-hidden="true">→</span></Link>
       </div>
       <section id="open-for-adoption" className="adoption-section" aria-labelledby="adoption-open-title">
-      <div className="page-head"><h2 id="adoption-open-title">Open for adoption</h2><p className="sub">Browse these CAVD-approved pets here. To start an application, use Find My Pet Match.</p></div>
+      <div className="page-head"><h2 id="adoption-open-title">Open for adoption</h2><p className="sub">Choose a pet and complete the adoption application form. CAVD will assess your household, experience and care plan before deciding. Preference matching is optional.</p></div>
       <form className="card filters" onSubmit={e => e.preventDefault()}>
-        <Field label="Search"><input className="grow" value={q} onChange={e => setQ(e.target.value)} placeholder="Name, breed or tag" /></Field>
-        <Field label="Species">
-          <select value={species} onChange={e => setSpecies(e.target.value)}>
-            <option value="all">Any</option><option value="dog">Dogs</option><option value="cat">Cats</option>
+        <Field label="Search species">
+          <select value={species} onChange={e => { setSpecies(e.target.value); setPage(0) }}>
+            <option value="all">Any species</option><option value="dog">Dogs</option><option value="cat">Cats</option><option value="other">Other</option>
           </select>
         </Field>
         <Field label="Size">
-          <select value={size} onChange={e => setSize(e.target.value)}>
+          <select value={size} onChange={e => { setSize(e.target.value); setPage(0) }}>
             <option value="all">Any</option><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option>
           </select>
         </Field>
         <Field label="Sex">
-          <select value={sex} onChange={e => setSex(e.target.value)}>
+          <select value={sex} onChange={e => { setSex(e.target.value); setPage(0) }}>
             <option value="all">Any</option><option value="male">Male</option><option value="female">Female</option>
           </select>
         </Field>
         <Field label="Age">
-          <select value={age} onChange={e => setAge(e.target.value)}>
+          <select value={age} onChange={e => { setAge(e.target.value); setPage(0) }}>
             <option value="all">Any</option>
             <option value="baby">Under 1 year</option>
             <option value="young">1–3 years</option>
@@ -370,14 +412,24 @@ export function UserBridge() {
           </select>
         </Field>
       </form>
-      {loading ? <p className="sub" role="status">Loading approved pets…</p> : null}
+      {loading ? <CardSkeletons label="Loading approved pets…" /> : null}
       {error ? <Notice kind="bad">Could not load available pets: {error}</Notice> : null}
       {saved.error ? <Notice kind="warn">Saved pets are unavailable: {saved.error}</Notice> : null}
+      {requests.error ? <Notice kind="bad">{requests.error}</Notice> : null}
       {!loading && !error ? <p className="sub">{shown.length} pet{shown.length === 1 ? '' : 's'} open for adoption.</p> : null}
       {!loading && !error && shown.length
-        ? <div className="pet-grid">{shown.map(r => <ListingCard key={r.listing_id} row={r} href={'/app/listings/' + r.listing_id}
-          actions={!saved.error ? <SaveListingButton saved={saved.ids?.has(r.listing_id) ?? false} disabled={!saved.ids}
-            busy={saved.busyId === r.listing_id} onToggle={() => void saved.toggle(r.listing_id)} /> : undefined} />)}</div>
+        ? <>
+        <div className="pet-grid">{visibleListings.map(r => <ListingCard key={r.listing_id} row={r} href={'/app/listings/' + r.listing_id}
+          actions={<>
+            {myPets.some(pet => pet.id === r.pet_id) ? <Pill kind="owner">Your pet</Pill>
+              : !requests.applications || myPetsLoading || Boolean(myPetsError)
+              ? <button className="btn btn-sm" type="button" disabled>Applications unavailable</button>
+              : <Link className="btn btn-sm" to={applicationPath(r.listing_id, requests.applications.get(r.listing_id))}>{applicationActionLabel(requests.applications.get(r.listing_id))}</Link>}
+            {!saved.error ? <SaveListingButton saved={saved.ids?.has(r.listing_id) ?? false} disabled={!saved.ids}
+              busy={saved.busyId === r.listing_id} onToggle={() => void saved.toggle(r.listing_id)} /> : null}
+          </>} />)}</div>
+        <Pagination label="Open for adoption" page={activePage} pageSize={ADOPTION_PAGE_SIZE} total={shown.length} onChange={changePage} />
+        </>
         : !loading && !error ? <Empty>{rows.length ? 'No approved pet matches these filters.' : 'No pets are open for adoption yet. CAVD publishes listings after review.'}</Empty> : null}
       </section>
       <section id="list-my-pet" className="adoption-section" aria-labelledby="adoption-list-title">
@@ -388,7 +440,7 @@ export function UserBridge() {
           const listing = myListings.find(row => row.pet_id === pet.id)
           return <article className="adoption-owned-row" key={pet.id}>
             <div className="avatar"><Photo url={pet.photo_url} name={pet.name} /></div>
-            <div className="adoption-owned-copy"><h3>{pet.name}</h3><span className="sub">{pet.registry_status === 'approved' ? listing?.status === 'approved' ? 'Open for adoption' : listing?.status === 'pending' ? 'Adoption request under CAVD review' : 'Ready to request a listing' : 'Pet registration must be approved first'}</span></div>
+            <div className="adoption-owned-copy"><h3>{pet.name}</h3><span className="sub">{pet.registry_status === 'approved' ? listing?.status === 'approved' ? eligibilityReasons(pet, myAdoptionChecks.find(row => row.pet_id === pet.id) || null, myLatestVisits.get(pet.id)).length ? 'Hidden — CAVD eligibility review needed' : 'Open for adoption' : listing?.status === 'pending' ? 'Adoption request under CAVD review' : 'Ready to request a listing' : 'Pet registration must be approved first'}</span></div>
             <Link className="btn btn-outline btn-sm" to={'/app/pets/' + pet.id}>{listing ? 'View pet and listing' : pet.registry_status === 'approved' ? 'Request listing' : 'View pet'}</Link>
           </article>
         })}</div> : !myPetsLoading && !myPetsError ? <div className="adoption-empty"><p>You have no registered pets yet.</p><Link to="/app/pets/new">Register a pet →</Link></div> : null}
@@ -401,22 +453,21 @@ export function UserListing() {
   const { id } = useParams()
   const { profile } = useAuth()
   const saved = useSavedListings(profile?.id)
+  const requests = useListingApplications(profile?.id)
   const [row, setRow] = useState<PublicListing | null>(null)
-  const [mine, setMine] = useState<Application | null>(null)
+  const myPetIds = useMyPetIds(profile?.id)
+  const mine = requests.applications?.get(id || '')
 
   useEffect(() => {
     if (!id) return
     supabase.from('public_listings').select('*').eq('listing_id', id).maybeSingle()
       .then(({ data }) => setRow((data as PublicListing) ?? null))
-    if (profile) {
-      supabase.from('applications').select('*').eq('listing_id', id).eq('adopter_id', profile.id).maybeSingle()
-        .then(({ data }) => setMine((data as Application) ?? null))
-    }
   }, [id, profile])
 
   if (!row) {
     return <UserShell><Notice kind="warn">This listing is not public. It may still be pending CAVD approval.</Notice></UserShell>
   }
+  const ownPet = myPetIds?.has(row.pet_id)
 
   return (
     <UserShell>
@@ -428,8 +479,8 @@ export function UserListing() {
             <div>
               <h1>{row.name}</h1>
               <div className="sub">{petLine(row)}</div>
-              <div className="pet-id">{row.qr_slug}</div>
-              <div className="btn-row" style={{ marginTop: '.4rem' }}>{sourcePill(row.source)}</div>
+              <PetCode code={row.qr_slug} />
+              <div className="btn-row" style={{ marginTop: '.4rem' }}>{originBadge(row.custody_source)}</div>
             </div>
           </div>
           <p>{row.listing_notes || row.about || ''}</p>
@@ -443,21 +494,27 @@ export function UserListing() {
           </dl>
           <Notice kind="info">Owner contact is withheld. CAVD handles the transfer.</Notice>
         </div>
-        <div className="record-aside">
+        {ownPet ? <div className="record-aside">
+          <h2>Your pet</h2>
+          <Notice kind="info">This is your pet. You can manage its listing from <Link to={`/app/pets/${row.pet_id}`}>My pets</Link>.</Notice>
+        </div> : <div className="record-aside">
           <h2>Interested in this pet?</h2>
-          <p className="sub">Browse this record here, then use Find My Pet Match to see ranked pets and begin an application from a match. CAVD reviews every application.</p>
+          <p className="sub">Complete the adoption application form so CAVD can assess your household and care plan. Preference matching is optional.</p>
           <div className="btn-row" style={{ marginBottom: '1rem' }}>
+            {requests.applications && myPetIds ? <Link className="btn" to={applicationPath(row.listing_id, mine)}>{applicationActionLabel(mine)}</Link> : <button className="btn" type="button" disabled>Loading application…</button>}
             {!saved.error ? <SaveListingButton saved={saved.ids?.has(row.listing_id) ?? false} disabled={!saved.ids}
               busy={saved.busyId === row.listing_id} onToggle={() => void saved.toggle(row.listing_id)} /> : null}
             <Link className="btn btn-sm btn-outline" to="/app/match">Find My Pet Match</Link>
           </div>
           {saved.error ? <Notice kind="warn">Saved pets are unavailable: {saved.error}</Notice> : null}
+          {requests.error ? <Notice kind="bad">{requests.error}</Notice> : null}
           {mine ? (
             <div><p className="sub">Applied <time dateTime={mine.created_at}>{fmtDate(mine.created_at)}</time>.</p>
               <p><strong>{stageLabel(mine.review_stage, mine.status)}</strong></p>
-              <Link className="btn btn-outline" to={`/app/applications/${mine.id}`}>View application</Link></div>
+              <ApplicationTracker stage={mine.review_stage} status={mine.status} />
+            </div>
           ) : null}
-        </div>
+        </div>}
       </div>
     </UserShell>
   )
@@ -481,7 +538,7 @@ export function UserApplications() {
       <div className="page-head">
         <Link className="record-link" to="/app/bridge">← Adoption</Link>
         <h1>My applications</h1>
-        <p className="sub">CAVD reviews every application. Neither the current owner nor a partner clinic can approve an adoption.</p>
+        <p className="sub">CAVD reviews every application. Only CAVD can approve an adoption.</p>
       </div>
       {rows.length === 0 ? <Empty>No applications yet.</Empty> : (
         <div className="card">
@@ -493,7 +550,7 @@ export function UserApplications() {
                   <tr key={a.id}>
                     <td>{a.listing?.name || a.pet_name_snapshot || `Listing ${a.listing_id.slice(0, 8)}`}</td>
                     <td><time dateTime={a.created_at}>{fmtDate(a.created_at)}</time></td>
-                    <td>{stageLabel(a.review_stage, a.status)}</td>
+                    <td><span className="stage-cell">{stageLabel(a.review_stage, a.status)}<ApplicationTracker stage={a.review_stage} status={a.status} compact /></span></td>
                     <td><Link className="btn btn-sm btn-outline" to={`/app/applications/${a.id}`}>View application</Link></td>
                   </tr>
                 ))}
@@ -502,18 +559,6 @@ export function UserApplications() {
           </div>
         </div>
       )}
-    </UserShell>
-  )
-}
-
-export function UserScan() {
-  const nav = useNavigate()
-  return (
-    <UserShell>
-      <div className="page-head"><h1>Scan a QR</h1></div>
-      <div className="card" style={{ maxWidth: '28rem' }}>
-        <Scanner onSlug={(slug) => nav('/p/' + slug)} />
-      </div>
     </UserShell>
   )
 }

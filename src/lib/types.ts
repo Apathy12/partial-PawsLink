@@ -1,9 +1,9 @@
-export type Role = 'user' | 'vet' | 'cavd'
+export type Role = 'user' | 'cavd'
 
 export type Profile = {
   id: string
   role: Role
-  registration_kind: 'user' | 'vet'
+  registration_kind: 'user'
   name: string
   contact: string | null
   clinic_name: string | null
@@ -18,8 +18,8 @@ export type Profile = {
 export type VerificationRequest = {
   id: string
   user_id: string
-  requested_role: 'user' | 'vet'
-  id_type: 'national_id' | 'drivers_license' | 'passport' | 'other_government_id' | 'prc_id'
+  requested_role: 'user'
+  id_type: 'national_id' | 'drivers_license' | 'passport' | 'other_government_id'
   id_path: string | null
   clinic_name: string | null
   prc_number: string | null
@@ -35,6 +35,7 @@ export type Pet = {
   qr_slug: string
   owner_id: string | null
   source: 'owner' | 'shelter'
+  custody_source: 'shelter' | 'private'
   registry_status: 'pending' | 'approved' | 'rejected'
   name: string
   species: 'dog' | 'cat' | 'other'
@@ -86,6 +87,7 @@ export type Visit = {
   vaccine_adverse_event: string | null
   evidence_path: string | null
   verification_status: 'legacy_summary' | 'vet_confirmed' | 'cavd_confirmed'
+  clearance_status: 'cleared' | 'hold' | 'pending'
   created_at: string
   corrected_by: string | null
   corrected_at: string | null
@@ -97,8 +99,8 @@ export type VisitCorrection = {
   visit_id: string
   corrected_at: string
   correction_note: string
-  previous_record: { summary: string }
-  corrected_record: { summary: string }
+  previous_record: { summary: string; clearance_status?: Visit['clearance_status'] }
+  corrected_record: { summary: string; clearance_status?: Visit['clearance_status'] }
 }
 
 export type Listing = {
@@ -119,8 +121,13 @@ export type Application = {
   message: string | null // retained only for applications submitted before migration 0012
   pet_name_snapshot: string | null
   answers_json: Record<string, string> | null
-  application_source: 'legacy' | 'explore' | 'match'
+  application_source: 'legacy' | 'explore' | 'match' | 'direct'
+  discovery_path: 'match' | 'direct'
   compatibility_score: number | null
+  compatibility_weights_json?: Record<string, number> | null
+  compatibility_weights_version?: number | null
+  preference_snapshot_json: Omit<AdopterPreferences, 'user_id' | 'updated_at'> | null
+  preference_snapshot_at: string | null
   review_stage: 'pending_review' | 'under_review' | 'for_interview' | 'additional_requirements' | 'approved' | 'rejected'
   cavd_remarks: string | null
   applicant_response: string | null
@@ -188,6 +195,7 @@ export type PublicListing = {
   rabies_vaccinated: boolean
   rabies_vaccinated_on: string | null
   source: Pet['source']
+  custody_source: Pet['custody_source']
 }
 
 export type PetMatchTraits = {
@@ -233,4 +241,5 @@ export type PublicPet = {
   source: Pet['source']
   is_listed: boolean
   listing_id: string | null
+  custody_source: Pet['custody_source']
 }

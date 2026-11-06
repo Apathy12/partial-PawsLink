@@ -1509,6 +1509,387 @@ async function main() {
     });
     if (restoredAccess.rows[0]?.allowed === false) ok('restoration requires CAVD MFA again');
     else bad('restoration requires CAVD MFA again');
+
+    section('Direct adoption requests');
+    await client.query(await readFile(join(root, 'supabase/migrations/0017_direct_adoption_requests.sql'), 'utf8'));
+    ok('applied 0017_direct_adoption_requests.sql');
+    const directPet = await mkPet(null, ID.cavd, 'shelter', 'approved', 'Direct Request Pet', 'cat', 'female', 'small', '2024-01-01');
+    const directListing = (await client.query(`insert into public.listings
+      (pet_id, listed_by, status, decided_by, decided_at)
+      values ($1, $2, 'approved', $2, now()) returning id`, [directPet.id, ID.cavd])).rows[0];
+    await client.query('delete from public.adopter_preferences where user_id = $1', [ID.owner]);
+    const directId = (await commitAs(ID.owner, () => client.query(
+      'select public.submit_direct_adoption_application($1) as id', [directListing.id]))).rows[0].id;
+    await rows('direct request needs no preferences, traits or questionnaire and enters CAVD review', ID.owner,
+      `select application_source, answers_json, compatibility_score, status, review_stage
+       from public.applications where id = $1`, r => r.length === 1 &&
+       r[0].application_source === 'direct' && r[0].answers_json === null &&
+       r[0].compatibility_score === null && r[0].status === 'pending' && r[0].review_stage === 'pending_review', [directId]);
+    await rows('repeated direct submission returns the same request', ID.owner,
+      'select public.submit_direct_adoption_application($1) as id', r => r[0]?.id === directId, [directListing.id]);
+    await rows('CAVD sees the direct request in its queue', ID.cavd,
+      'select id from public.applications where id = $1', r => r.length === 1, [directId]);
+    await rows('direct submission creates an application history event', ID.owner,
+      'select new_stage from public.application_events where application_id = $1',
+      r => r.length === 1 && r[0].new_stage === 'pending_review', [directId]);
+    await rows('another adopter cannot see this direct request', ID.adopter,
+      'select id from public.applications where id = $1', r => r.length === 0, [directId]);
+    await denied('a vet cannot submit a direct adoption request', ID.vet,
+      'select public.submit_direct_adoption_application($1)', [directListing.id], 'only verified');
+    await denied('a signed-out account cannot submit a direct adoption request', null,
+      'select public.submit_direct_adoption_application($1)', [directListing.id], 'only verified');
+    const ownListing = (await client.query(`insert into public.listings
+      (pet_id, listed_by, status, decided_by, decided_at)
+      values ($1, $2, 'approved', $3, now()) returning id`, [petFree.id, ID.owner, ID.cavd])).rows[0];
+    await denied('an owner cannot directly apply for their own pet', ID.owner,
+      'select public.submit_direct_adoption_application($1)', [ownListing.id], 'not available');
+    await denied('an unavailable listing refuses a direct request', ID.owner,
+      'select public.submit_direct_adoption_application($1)', ['ffffffff-0000-4000-8000-000000000001'], 'no longer open');
+    await noEffect('an adopter cannot approve their direct request', ID.owner,
+      `update public.applications set status = 'approved' where id = $1`, [directId]);
+    await denied('direct request still needs CAVD validation before transfer', ID.cavd,
+      `select public.approve_application($1, 'unknown', current_date, 'Applicant', 'Reviewed request')`,
+      [directId], 'choose how cavd validated');
+    await act(ID.cavd, async () => {
+      await client.query(`select public.approve_application($1, 'cavd_visit', current_date,
+        'Applicant', 'Direct request validated at CAVD.')`, [directId]);
+      const pet = (await client.query('select owner_id from public.pets where id = $1', [directPet.id])).rows[0];
+      const listing = (await client.query('select status from public.listings where id = $1', [directListing.id])).rows[0];
+      const application = (await client.query('select status, review_stage from public.applications where id = $1', [directId])).rows[0];
+      if (pet.owner_id === ID.owner && listing.status === 'closed' && application.status === 'approved' && application.review_stage === 'approved')
+        ok('validated direct request transfers ownership and closes the listing');
+      else bad('validated direct request transfers ownership and closes the listing');
+    });
+
+    section('Strict adoption eligibility and configurable weights');
+    await client.query(await readFile(join(root, 'supabase/migrations/0018_strict_adoption_rules.sql'), 'utf8'));
+    ok('applied 0018_strict_adoption_rules.sql');
+    await rows('old records start on hold without invented verification', ID.cavd,
+      'select availability,verified_by,verified_at from public.pet_adoption_checks where pet_id = $1',
+      r => r[0]?.availability === 'hold' && r[0].verified_by === null && r[0].verified_at === null, [directPet.id]);
+    const strictPet = (await client.query(`insert into public.pets
+      (created_by,source,registry_status,name,species,sex,size,birth_date,sterilized,rabies_vaccinated,rabies_vaccinated_on)
+      values ($1,'shelter','approved','Strict adoption sample','dog','female','small','2025-01-01',true,true,current_date) returning id,qr_slug`, [ID.cavd])).rows[0];
+    const strictListing = (await client.query(`insert into public.listings(pet_id,listed_by,status)
+      values($1,$2,'pending') returning id`, [strictPet.id, ID.cavd])).rows[0];
+    await rows('new pets automatically start on hold', ID.cavd,
+      'select availability from public.pet_adoption_checks where pet_id = $1', r => r[0]?.availability === 'hold', [strictPet.id]);
+    await denied('listing approval is blocked until every eligibility check passes', ID.cavd,
+      `update public.listings set status = 'approved' where id = $1`, [strictListing.id], 'eligibility checks');
+    const saveChecks = `select public.save_pet_adoption_checks($1,$2,$3,current_date + 30,$4,'Reviewed for demonstration',true)`;
+    await denied('owners cannot certify adoption eligibility', ID.owner, saveChecks,
+      [strictPet.id, 'available', 'current', 'cleared'], 'only cavd');
+    await denied('vets cannot certify adoption eligibility', ID.vet, saveChecks,
+      [strictPet.id, 'available', 'current', 'cleared'], 'only cavd');
+    await denied('eligibility cannot be changed through a direct table write', ID.cavd,
+      `update public.pet_adoption_checks set availability = 'available' where pet_id = $1`, [strictPet.id], 'permission denied');
+    await denied('CAVD must explicitly confirm the eligibility review', ID.cavd,
+      `select public.save_pet_adoption_checks($1,'available','current',current_date + 30,'cleared','',false)`, [strictPet.id], 'confirm');
+    await denied('expired vaccination cannot be certified Current', ID.cavd,
+      `select public.save_pet_adoption_checks($1,'available','current',current_date - 1,'cleared','',true)`, [strictPet.id], 'valid-through');
+    await denied('Adopted cannot be assigned without an ownership transfer', ID.cavd,
+      saveChecks, [strictPet.id, 'adopted', 'current', 'cleared'], 'ownership transfer');
+    await denied('adopters cannot read the CAVD eligibility report', ID.owner,
+      'select * from public.cavd_eligibility_report()', [], 'only cavd');
+    await commitAs(ID.cavd, () => client.query(saveChecks, [strictPet.id, 'available', 'current', 'not_cleared']));
+    await rows('unmet behavioral clearance provides an exclusion reason', ID.cavd,
+      'select eligible,reasons from public.cavd_eligibility_report() where pet_id = $1',
+      r => r[0]?.eligible === false && r[0].reasons.some(reason => /behavioral/i.test(reason)), [strictPet.id]);
+    await commitAs(ID.cavd, () => client.query(saveChecks, [strictPet.id, 'available', 'current', 'cleared']));
+    await rows('all required conditions pass after a CAVD review', ID.cavd,
+      'select eligible,reasons from public.cavd_eligibility_report() where pet_id = $1',
+      r => r[0]?.eligible === true && r[0].reasons.length === 0, [strictPet.id]);
+    await commitAs(ID.cavd, () => client.query(`update public.listings set status = 'approved',decided_by = $2,decided_at = now() where id = $1`, [strictListing.id, ID.cavd]));
+    const anonEligible = await asRole('anon', () => client.query('select listing_id from public.public_listings where listing_id = $1', [strictListing.id]));
+    if (anonEligible.rowCount === 1) ok('anonymous public browsing exposes the eligible listing');
+    else bad('anonymous public browsing exposes the eligible listing');
+    await commitAs(ID.cavd, () => client.query(saveChecks, [strictPet.id, 'hold', 'current', 'cleared']));
+    const anonHold = await asRole('anon', () => client.query('select listing_id from public.public_listings where listing_id = $1', [strictListing.id]));
+    if (anonHold.rowCount === 0) ok('placing a pet on Hold immediately hides its listing');
+    else bad('placing a pet on Hold immediately hides its listing');
+    await rows('public PET ID lookup does not advertise an on-hold adoption listing', ID.owner,
+      'select is_listed,listing_id from public.public_pets where qr_slug = $1',
+      r => r[0]?.is_listed === false && r[0].listing_id === null, [strictPet.qr_slug]);
+    await denied('direct application cannot bypass Hold', ID.owner,
+      'select public.submit_direct_adoption_application($1)', [strictListing.id], 'eligibility checks');
+    await denied('matching application cannot bypass Hold', ID.owner,
+      `select public.submit_adoption_application($1,$2::jsonb,'match')`, [strictListing.id, JSON.stringify(applicationAnswers)], 'eligibility checks');
+    await commitAs(ID.cavd, () => client.query(saveChecks, [strictPet.id, 'available', 'current', 'cleared']));
+    const strictDirectId = (await commitAs(ID.owner, () => client.query('select public.submit_direct_adoption_application($1) as id', [strictListing.id]))).rows[0].id;
+    await commitAs(ID.cavd, () => client.query(saveChecks, [strictPet.id, 'hold', 'current', 'cleared']));
+    await denied('an earlier request cannot be approved after the pet goes on Hold', ID.cavd,
+      `select public.approve_application($1,'cavd_visit',current_date,'Applicant','Validated at CAVD')`, [strictDirectId], 'eligibility checks');
+    await commitAs(ID.cavd, () => client.query(saveChecks, [strictPet.id, 'available', 'current', 'cleared']));
+    await commitAs(ID.cavd, () => client.query('update public.pets set sterilized = false where id = $1', [strictPet.id]));
+    await rows('health flag changes invalidate the earlier CAVD review', ID.cavd,
+      'select verified_by,verified_at from public.pet_adoption_checks where pet_id = $1', r => r[0]?.verified_by === null && r[0].verified_at === null, [strictPet.id]);
+    await denied('a changed health record cannot use stale approval', ID.owner,
+      'select public.submit_direct_adoption_application($1)', [strictListing.id], 'eligibility checks');
+    await commitAs(ID.cavd, () => client.query('update public.pets set sterilized = true where id = $1', [strictPet.id]));
+    await commitAs(ID.cavd, () => client.query(saveChecks, [strictPet.id, 'available', 'current', 'cleared']));
+
+    const equalWeights = { species: .1,size: .1,age: .1,activity: .1,temperament: .1,space: .1,time: .1,children: .1,other_pets: .1,experience: .1 };
+    await denied('ordinary users cannot change weights', ID.owner,
+      'select public.set_match_weights($1::jsonb)', [JSON.stringify(equalWeights)], 'only cavd');
+    await denied('weight totals other than 1.00 are rejected', ID.cavd,
+      'select public.set_match_weights($1::jsonb)', [JSON.stringify({ ...equalWeights, species: .2 })], 'add up');
+    await denied('negative weights are rejected even when their total is 1.00', ID.cavd,
+      'select public.set_match_weights($1::jsonb)', [JSON.stringify({ ...equalWeights, species: -.1, size: .3 })], 'between 0 and 1');
+    await denied('missing or unsupported weight keys are rejected', ID.cavd,
+      'select public.set_match_weights($1::jsonb)', [JSON.stringify({ species: 1 })], 'ten supported');
+    await denied('numeric strings cannot bypass weight validation', ID.cavd,
+      'select public.set_match_weights($1::jsonb)', [JSON.stringify({ ...equalWeights, species: '0.1' })], 'numeric');
+    const focusedWeights = Object.fromEntries(Object.keys(equalWeights).map(key => [key, key === 'species' ? 1 : 0]));
+    await commitAs(ID.cavd, () => client.query('select public.set_match_weights($1::jsonb)', [JSON.stringify(focusedWeights)]));
+    await commitAs(ID.owner, () => client.query(preferenceSql, [ID.owner]));
+    await client.query(`insert into public.pet_match_traits
+      (pet_id,activity_level,temperament,child_compatible,pet_compatible,space_need,time_need,experience_need,updated_by)
+      values($1,5,'protective',false,false,5,5,5,$2)`, [strictPet.id, ID.cavd]);
+    const weightedId = (await commitAs(ID.adopter, () => client.query(
+      `select public.submit_adoption_application($1,$2::jsonb,'match') as id`, [strictListing.id, JSON.stringify(applicationAnswers)]))).rows[0].id;
+    await rows('server scoring uses CAVD weights and records their version', ID.adopter,
+      'select compatibility_score,compatibility_weights_json,compatibility_weights_version from public.applications where id = $1',
+      r => Number(r[0]?.compatibility_score) === 100 && r[0].compatibility_weights_json.species === 1 && r[0].compatibility_weights_version === 2, [weightedId]);
+    await commitAs(ID.cavd, () => client.query('select public.set_match_weights($1::jsonb)', [JSON.stringify(equalWeights)]));
+    await rows('later weight changes do not rewrite earlier application scores', ID.adopter,
+      'select compatibility_score,compatibility_weights_version from public.applications where id = $1',
+      r => Number(r[0]?.compatibility_score) === 100 && r[0].compatibility_weights_version === 2, [weightedId]);
+    await rows('weight changes retain an auditable history', ID.cavd,
+      'select version from public.match_weight_history order by version', r => r.length === 3, []);
+    await noEffect('CAVD cannot rewrite the captured application score', ID.cavd,
+      'update public.applications set compatibility_weights_version = 3 where id = $1', [weightedId]);
+    await client.query('update public.pet_adoption_checks set vaccination_valid_until = current_date - 1 where pet_id = $1', [strictPet.id]);
+    await rows('expired vaccination immediately removes adoption eligibility', ID.cavd,
+      'select eligible,reasons from public.cavd_eligibility_report() where pet_id = $1',
+      r => r[0]?.eligible === false && r[0].reasons.some(reason => /vaccination/.test(reason)), [strictPet.id]);
+    await denied('expired vaccination blocks direct application through the API', ID.other,
+      'select public.submit_direct_adoption_application($1)', [strictListing.id], 'eligibility checks');
+    await commitAs(ID.cavd, () => client.query(saveChecks, [strictPet.id, 'available', 'current', 'cleared']));
+    await act(ID.cavd, async () => {
+      await client.query(`select public.approve_application($1,'cavd_visit',current_date,'Applicant','Strict checks passed')`, [strictDirectId]);
+      const status = (await client.query('select availability from public.pet_adoption_checks where pet_id = $1', [strictPet.id])).rows[0];
+      const visible = await client.query('select listing_id from public.public_listings where listing_id = $1', [strictListing.id]);
+      if (status.availability === 'adopted' && visible.rowCount === 0) ok('validated transfer marks Adopted and removes the pet from browsing');
+      else bad('validated transfer marks Adopted and removes the pet from browsing');
+    });
+
+    section('Required forms without preference matching');
+    const formAdopter = 'eeeeeeee-0000-4000-8000-000000000019';
+    await client.query(`insert into auth.users(id,email,raw_user_meta_data) values($1,'form-adopter@demo.local','{"name":"Form Adopter"}')`, [formAdopter]);
+    await commitAs(ID.cavd, () => client.query(`update public.profiles set role = 'user',is_active = true,verification_exempt = true where id = $1`, [formAdopter]));
+    const formPet = (await client.query(`insert into public.pets
+      (created_by,source,registry_status,name,species,sex,size,birth_date,sterilized,rabies_vaccinated,rabies_vaccinated_on)
+      values($1,'shelter','approved','Form-only sample','cat','female','small','2024-01-01',true,true,current_date) returning id`, [ID.cavd])).rows[0];
+    await commitAs(ID.cavd, () => client.query(saveChecks, [formPet.id, 'available', 'current', 'cleared']));
+    const formListing = (await client.query(`insert into public.listings(pet_id,listed_by,status)
+      values($1,$2,'approved') returning id`, [formPet.id, ID.cavd])).rows[0];
+    const earlierRequest = (await commitAs(ID.owner, () => client.query(
+      'select public.submit_direct_adoption_application($1) as id', [formListing.id]))).rows[0].id;
+    await commitAs(ID.cavd, () => client.query(`select public.review_adoption_application($1,'additional_requirements','Please complete the form')`, [earlierRequest]));
+    await client.query('delete from public.adopter_preferences where user_id in ($1,$2)', [ID.owner, formAdopter]);
+    await client.query(await readFile(join(root, 'supabase/migrations/0019_required_adoption_forms.sql'), 'utf8'));
+    ok('applied 0019_required_adoption_forms.sql');
+    await denied('old direct endpoint cannot submit a form-free request', formAdopter,
+      'select public.submit_direct_adoption_application($1)', [formListing.id], 'application form');
+    await denied('application forms reject an empty questionnaire', formAdopter,
+      `select public.submit_adoption_application($1,'{}'::jsonb,'explore')`, [formListing.id], 'required');
+    await denied('form submission requires the accuracy declaration', formAdopter,
+      `select public.submit_adoption_application($1,$2::jsonb,'explore')`,
+      [formListing.id, JSON.stringify({ ...applicationAnswers, declaration: false })], 'declaration');
+    await denied('arbitrary source names cannot create applications', formAdopter,
+      `select public.submit_adoption_application($1,$2::jsonb,'direct')`, [formListing.id, JSON.stringify(applicationAnswers)], 'valid application source');
+    await denied('vets cannot submit the adopter form', ID.vet,
+      `select public.submit_adoption_application($1,$2::jsonb,'explore')`, [formListing.id, JSON.stringify(applicationAnswers)], 'only verified');
+    await denied('matched applications still require saved preferences', ID.owner,
+      `select public.submit_adoption_application($1,$2::jsonb,'match')`, [formListing.id, JSON.stringify(applicationAnswers)], 'save your');
+    await denied('CAVD cannot approve an earlier form-free request', ID.cavd,
+      `select public.approve_application($1,'cavd_visit',current_date,'Applicant','Reviewed in office')`, [earlierRequest], 'application form');
+    const formId = (await commitAs(formAdopter, () => client.query(
+      `select public.submit_adoption_application($1,$2::jsonb,'explore') as id`, [formListing.id, JSON.stringify(applicationAnswers)]))).rows[0].id;
+    await rows('listed-pet application saves answers without preferences or pet matching traits', formAdopter,
+      `select application_source,answers_json,compatibility_score,compatibility_weights_json,compatibility_weights_version,status
+       from public.applications where id = $1`,
+      r => r[0]?.application_source === 'explore' && r[0].answers_json.full_name === applicationAnswers.full_name &&
+        r[0].compatibility_score === null && r[0].compatibility_weights_json === null && r[0].compatibility_weights_version === null && r[0].status === 'pending', [formId]);
+    await rows('repeated form submission returns the existing application', formAdopter,
+      `select public.submit_adoption_application($1,$2::jsonb,'explore') as id`,
+      r => r[0]?.id === formId, [formListing.id, JSON.stringify({ ...applicationAnswers, full_name: 'Changed name' })]);
+    await rows('repeated submissions never replace the original answers', formAdopter,
+      'select answers_json from public.applications where id = $1', r => r[0]?.answers_json.full_name === applicationAnswers.full_name, [formId]);
+    await rows('CAVD receives completed form answers for assessment', ID.cavd,
+      'select answers_json from public.applications where id = $1', r => r[0]?.answers_json.care_plan === applicationAnswers.care_plan, [formId]);
+    await rows('another adopter cannot read the submitted answers', ID.adopter,
+      'select answers_json from public.applications where id = $1', r => r.length === 0, [formId]);
+    await commitAs(ID.cavd, () => client.query(saveChecks, [formPet.id, 'hold', 'current', 'cleared']));
+    await denied('form submission cannot bypass adoption Hold', ID.adopter,
+      `select public.submit_adoption_application($1,$2::jsonb,'explore')`, [formListing.id, JSON.stringify(applicationAnswers)], 'eligibility checks');
+    await commitAs(ID.cavd, () => client.query(saveChecks, [formPet.id, 'available', 'current', 'cleared']));
+    await commitAs(ID.owner, () => client.query(`select public.submit_adoption_application($1,$2::jsonb,'explore')`, [formListing.id, JSON.stringify(applicationAnswers)]));
+    await rows('an earlier direct request gains its form without losing CAVD remarks', ID.owner,
+      'select application_source,answers_json,cavd_remarks from public.applications where id = $1',
+      r => r[0]?.application_source === 'explore' && r[0].answers_json.full_name === applicationAnswers.full_name && r[0].cavd_remarks === 'Please complete the form', [earlierRequest]);
+    await act(ID.cavd, async () => {
+      await client.query(`select public.approve_application($1,'cavd_visit',current_date,'Applicant','Reviewed completed form')`, [formId]);
+      const record = (await client.query('select owner_id from public.pets where id = $1', [formPet.id])).rows[0];
+      if (record.owner_id === formAdopter) ok('reviewed form still requires and supports the normal validated transfer');
+      else bad('reviewed form still requires and supports the normal validated transfer');
+    });
+
+    section('CAVD veterinary integration and adoption tags');
+    // The accounts above are the legacy rows this migration has to retire safely.
+    const pendingVet = 'eeeeeeee-0000-4000-8000-000000000020';
+    const tagAdopter = 'eeeeeeee-0000-4000-8000-000000000021';
+    const signupVet = 'eeeeeeee-0000-4000-8000-000000000022';
+    await client.query(`insert into auth.users(id,email,raw_user_meta_data) values
+      ($1,'pending-vet@example.com','{"name":"Pending Vet","requested_role":"vet"}'),
+      ($2,'tag-adopter@example.com','{"name":"Tag Adopter"}')`, [pendingVet, tagAdopter]);
+    await client.query(`insert into public.verification_requests(user_id,requested_role,id_type,id_path,clinic_name,prc_number)
+      values($1,'vet','prc_id',$2,'Waiting Clinic','PRC-WAIT')`, [pendingVet, pendingVet + '/prc.jpg']);
+    await commitAs(ID.cavd, () => client.query('update public.profiles set verification_exempt = true where id = $1', [tagAdopter]));
+    const visitsBefore = (await client.query('select count(*)::int as n from public.visits')).rows[0].n;
+    await client.query(await readFile(join(root, 'supabase/migrations/0020_cavd_vet_integration_and_adoption_tags.sql'), 'utf8'));
+    ok('applied 0020_cavd_vet_integration_and_adoption_tags.sql');
+
+    const retired = (await client.query(`select count(*)::int as total, count(*) filter (where is_active)::int as active from public.profiles where role = 'vet'`)).rows[0];
+    if (retired.total > 0 && retired.active === 0) ok('every vet account is deactivated but kept');
+    else bad('every vet account is deactivated but kept', JSON.stringify(retired));
+    const visitsAfter = (await client.query('select count(*)::int as n, count(*) filter (where clearance_status <> $1)::int as cleared from public.visits', ['pending'])).rows[0];
+    if (visitsAfter.n === visitsBefore && visitsAfter.cleared === 0) ok('every earlier visit stays on record, starting as Pending');
+    else bad('every earlier visit stays on record, starting as Pending', JSON.stringify({ visitsBefore, visitsAfter }));
+    const waiting = (await client.query(`select r.status, r.review_note, p.registration_kind from public.verification_requests r
+      join public.profiles p on p.id = r.user_id where r.user_id = $1`, [pendingVet])).rows[0];
+    if (waiting.status === 'rejected' && /no longer registers/.test(waiting.review_note) && waiting.registration_kind === 'user') ok('a waiting vet applicant moves to the owner path with a reason');
+    else bad('a waiting vet applicant moves to the owner path with a reason', JSON.stringify(waiting));
+    await client.query(`insert into auth.users(id,email,raw_user_meta_data) values($1,'signup-vet@example.com','{"name":"Signup Vet","requested_role":"vet"}')`, [signupVet]);
+    const signedUp = (await client.query('select role, registration_kind from public.profiles where id = $1', [signupVet])).rows[0];
+    if (signedUp.role === 'user' && signedUp.registration_kind === 'user') ok('signup metadata can no longer choose a vet account');
+    else bad('signup metadata can no longer choose a vet account', JSON.stringify(signedUp));
+    await denied('a vet ID request is refused with a clear message', signupVet,
+      `insert into public.verification_requests(user_id,requested_role,id_type,id_path,clinic_name,prc_number)
+       values($1,'vet','prc_id',$2,'New Clinic','PRC-1')`, [signupVet, signupVet + '/prc.jpg'], 'no longer registers');
+    await denied('CAVD cannot reactivate an outside vet', ID.cavd,
+      'update public.profiles set is_active = true where id = $1', [ID.vet], 'retired');
+    await denied('CAVD cannot issue the vet role', ID.cavd,
+      `update public.profiles set role = 'vet' where id = $1`, [signupVet], 'retired');
+    await rows('a deactivated vet can read no visits', ID.vet, 'select id from public.visits', r => r.length === 0 || 'saw ' + r.length);
+    await denied('a deactivated vet cannot write a visit', ID.vet,
+      `insert into public.visits(pet_id,recorded_by,clinic_name,visit_date,summary) values($1,$2,'Closed',current_date,'No')`,
+      [formPet.id, ID.vet], 'row-level security');
+    await noEffect('a deactivated vet cannot edit a pet', ID.vet, `update public.pets set color = 'Red' where id = $1`, [formPet.id]);
+    await allowed('CAVD can edit pet details a vet used to edit', ID.cavd,
+      `update public.pets set weight_kg = 12.5, color = 'Brown', photo_url = 'https://example.test/cavd.jpg' where id = $1`, [formPet.id]);
+
+    const addVisit = `insert into public.visits(pet_id,recorded_by,recorded_by_name,clinic_name,visit_date,summary,clearance_status)
+      values($1,$2,'Forged name','CAVD Veterinary Clinic',$3,'Checked',$4) returning id,recorded_by_name,verification_status,clearance_status`;
+    const tagPet = (await client.query(`insert into public.pets
+      (created_by,source,registry_status,name,species,sex,size,birth_date,sterilized,rabies_vaccinated,rabies_vaccinated_on)
+      values($1,'shelter','approved','Clearance Pet','dog','male','small','2024-01-01',true,true,current_date) returning id,qr_slug`, [ID.cavd])).rows[0];
+    await commitAs(ID.cavd, () => client.query(saveChecks, [tagPet.id, 'available', 'current', 'cleared']));
+    const listingRequest = `insert into public.listings(pet_id,listed_by,status,decided_by,decided_at) values($1,$2,'approved',$2,now()) returning id`;
+    await denied('a listing cannot be approved before a Cleared visit', ID.cavd, listingRequest, [tagPet.id, ID.cavd], 'eligibility');
+    await rows('a pet with no visit reports that reason', ID.cavd, 'select reasons, latest_clearance from public.cavd_eligibility_report() where pet_id = $1',
+      r => (r[0]?.latest_clearance === null && r[0].reasons.join().includes('Latest veterinary visit is not Cleared (no visit recorded)')) || JSON.stringify(r), [tagPet.id]);
+    await denied('an ordinary user cannot record a visit', tagAdopter,
+      addVisit, [tagPet.id, tagAdopter, new Date().toISOString().slice(0, 10), 'cleared'], 'row-level security');
+    const oldVisit = (await commitAs(ID.cavd, () => client.query(addVisit, [tagPet.id, ID.cavd, '2026-01-10', 'cleared']))).rows[0];
+    if (oldVisit.clearance_status === 'cleared' && oldVisit.verification_status === 'cavd_confirmed' && oldVisit.recorded_by_name === 'CAVD Office') ok('CAVD saves clearance and the recorder is always the signed-in staff member');
+    else bad('CAVD saves clearance and the recorder is always the signed-in staff member', JSON.stringify(oldVisit));
+    const tagListing = (await commitAs(ID.cavd, () => client.query(listingRequest, [tagPet.id, ID.cavd]))).rows[0];
+    const listed = async () => (await asRole('anon', () => client.query('select l.custody_source from public.public_listings l where l.listing_id = $1', [tagListing.id]))).rows;
+    const publicListed = async () => (await asRole('anon', () => client.query('select is_listed, custody_source from public.public_pets where qr_slug = $1', [tagPet.qr_slug]))).rows[0];
+    const expectFeed = async (name, visible) => {
+      const inFeed = (await listed()).length === 1; const pet = await publicListed();
+      if (inFeed === visible && pet.is_listed === visible) ok(name);
+      else bad(name, JSON.stringify({ inFeed, pet }));
+    };
+    await expectFeed('a Cleared latest visit keeps a passing pet in the public feed', true);
+    const shelterTag = await publicListed();
+    if (shelterTag.custody_source === 'shelter' && (await listed())[0].custody_source === 'shelter') ok('shelter pets are tagged shelter in both public views');
+    else bad('shelter pets are tagged shelter in both public views', JSON.stringify(shelterTag));
+    const latestVisit = (await commitAs(ID.cavd, () => client.query(addVisit, [tagPet.id, ID.cavd, '2026-02-10', 'hold']))).rows[0];
+    await expectFeed('a Hold latest visit removes the pet from the feed, even after an earlier Cleared visit', false);
+    await denied('a Hold pet cannot receive an application', tagAdopter,
+      `select public.submit_adoption_application($1,$2::jsonb,'explore')`, [tagListing.id, JSON.stringify(applicationAnswers)], 'eligibility checks');
+    await denied('clearance cannot change without a correction note', ID.cavd,
+      `update public.visits set clearance_status = 'cleared' where id = $1`, [latestVisit.id], 'correction_note');
+    await commitAs(ID.cavd, () => client.query(`update public.visits set clearance_status = 'pending', correction_note = 'Awaiting lab result' where id = $1`, [latestVisit.id]));
+    await expectFeed('a Pending latest visit also keeps the pet out of the feed', false);
+    await denied('a later clearance change cannot reuse the old note', ID.cavd,
+      `update public.visits set clearance_status = 'cleared' where id = $1`, [latestVisit.id], 'new correction_note');
+    await commitAs(ID.cavd, () => client.query(`update public.visits set clearance_status = 'cleared', correction_note = 'Lab result normal' where id = $1`, [latestVisit.id]));
+    await expectFeed('correcting the latest visit to Cleared returns the pet to the feed', true);
+    await rows('each clearance change is written to the correction audit', ID.cavd,
+      `select previous_record->>'clearance_status' as before, corrected_record->>'clearance_status' as after, correction_note
+       from public.visit_corrections where visit_id = $1 order by corrected_at, correction_note`,
+      r => (r.length === 2 && r.some(x => x.before === 'hold' && x.after === 'pending') && r.some(x => x.before === 'pending' && x.after === 'cleared')) || JSON.stringify(r), [latestVisit.id]);
+    await asRole('anon', async () => {
+      try { await client.query('select public.latest_visit_clearance($1)', [tagPet.id]); bad('clearance lookup is not exposed publicly'); }
+      catch { ok('clearance lookup is not exposed publicly'); }
+    });
+
+    const ownerPet = (await client.query(`insert into public.pets
+      (owner_id,created_by,source,registry_status,name,species,sex,size,birth_date,sterilized,rabies_vaccinated,rabies_vaccinated_on)
+      values($1,$1,'owner','approved','Private Tag Pet','cat','female','small','2024-01-01',true,true,current_date) returning id,custody_source`, [ID.owner])).rows[0];
+    if (ownerPet.custody_source === 'private') ok('owner pets are tagged private');
+    else bad('owner pets are tagged private', JSON.stringify(ownerPet));
+    await commitAs(ID.cavd, () => client.query(saveChecks, [ownerPet.id, 'available', 'current', 'cleared']));
+    await commitAs(ID.cavd, () => client.query(addVisit, [ownerPet.id, ID.cavd, '2026-03-10', 'cleared']));
+    const ownerListing = (await commitAs(ID.cavd, () => client.query(listingRequest, [ownerPet.id, ID.cavd]))).rows[0];
+    try {
+      await client.query(`insert into public.applications(listing_id,adopter_id,answers_json) values($1,$2,'{}')`, [ownerListing.id, ID.owner]);
+      bad('the database blocks self-adoption even outside the RPC functions', 'insert succeeded');
+    } catch (e) {
+      if (/cannot apply to adopt your own pet/.test(e.message)) ok('the database blocks self-adoption even outside the RPC functions');
+      else bad('the database blocks self-adoption even outside the RPC functions', e.message);
+    }
+    await denied('the submit function still refuses a person’s own pet', ID.owner,
+      `select public.submit_adoption_application($1,$2::jsonb,'explore')`, [ownerListing.id, JSON.stringify(applicationAnswers)], 'eligibility checks');
+
+    await commitAs(ID.cavd, () => client.query(`insert into public.pet_match_traits
+      (pet_id,activity_level,temperament,child_compatible,pet_compatible,space_need,time_need,experience_need,updated_by)
+      values($1,3,'calm',true,true,2,2,2,$2)`, [tagPet.id, ID.cavd]));
+    await commitAs(tagAdopter, () => client.query(`insert into public.adopter_preferences
+      (user_id,preferred_species,preferred_size,preferred_age,activity_preference,temperament_preference,living_space,time_availability,children_at_home,other_pets_at_home,ownership_experience)
+      values($1,'dog','small','young',3,'calm',3,3,false,false,2)`, [tagAdopter]));
+    const stamped = (await commitAs(tagAdopter, () => client.query(`select public.submit_adoption_application($1,$2::jsonb,'match') as id`, [tagListing.id, JSON.stringify(applicationAnswers)]))).rows[0].id;
+    const stampedRow = async () => (await client.query('select discovery_path, preference_snapshot_json, preference_snapshot_at from public.applications where id = $1', [stamped])).rows[0];
+    const firstStamp = await stampedRow();
+    if (firstStamp.discovery_path === 'match' && Object.keys(firstStamp.preference_snapshot_json).length === 10 && firstStamp.preference_snapshot_at && !('user_id' in firstStamp.preference_snapshot_json)) ok('a match application stamps all 10 answers and is tagged Match');
+    else bad('a match application stamps all 10 answers and is tagged Match', JSON.stringify(firstStamp));
+    await commitAs(tagAdopter, () => client.query(`update public.adopter_preferences set preferred_species = 'cat' where user_id = $1`, [tagAdopter]));
+    if ((await stampedRow()).preference_snapshot_json.preferred_species === 'dog') ok('changing preferences later leaves the stamped answers alone');
+    else bad('changing preferences later leaves the stamped answers alone');
+    await noEffect('CAVD cannot rewrite stamped answers', ID.cavd,
+      `update public.applications set preference_snapshot_json = '{}' where id = $1`, [stamped]);
+    await noEffect('an adopter cannot edit stamped answers directly', tagAdopter,
+      `update public.applications set preference_snapshot_json = '{}' where id = $1`, [stamped]);
+    await commitAs(ID.cavd, () => client.query(`select public.review_adoption_application($1,'for_interview','Please call us')`, [stamped]));
+    await commitAs(tagAdopter, () => client.query(`select public.respond_to_adoption_application($1,'I can come on Monday')`, [stamped]));
+    await rows('an adopter can still reply to CAVD after the new generated column', tagAdopter,
+      'select applicant_response, discovery_path from public.applications where id = $1',
+      r => r[0]?.applicant_response === 'I can come on Monday' && r[0].discovery_path === 'match', [stamped]);
+    await rows('explore applications are tagged Direct and stamp no answers', formAdopter,
+      'select discovery_path, preference_snapshot_json, preference_snapshot_at from public.applications where id = $1',
+      r => r[0]?.discovery_path === 'direct' && r[0].preference_snapshot_json === null && r[0].preference_snapshot_at === null, [formId]);
+    await rows('legacy and direct requests count as Direct', ID.owner,
+      `select discovery_path from public.applications where id = $1`, r => r[0]?.discovery_path === 'direct', [earlierRequest]);
+
+    section('Migration 0021: helper search path');
+    await client.query(await readFile(join(root, 'supabase/migrations/0021_pin_helper_search_path.sql'), 'utf8'));
+    ok('applied 0021_pin_helper_search_path.sql');
+    const unpinned = (await client.query(`select count(*)::int as total from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public'
+      and p.proname in ('gen_qr_slug', 'touch_updated_at') and not exists (select 1 from unnest(p.proconfig) c
+        where c in ('search_path=', 'search_path=""'))`)).rows[0].total;
+    if (unpinned === 0) ok('gen_qr_slug and touch_updated_at use an empty search path');
+    else bad('gen_qr_slug and touch_updated_at use an empty search path', `${unpinned} remain`);
+    await rows('a new pet still gets a generated PET ID', ID.cavd,
+      `insert into public.pets (created_by, source, registry_status, name, species, sex, size, birth_date)
+       values ($1, 'shelter', 'approved', 'Slug Check', 'cat', 'female', 'small', '2023-01-01') returning qr_slug`,
+      r => /^[23456789abcdefghjkmnpqrstuvwxyz]{8}$/.test(r[0]?.qr_slug ?? ''), [ID.cavd]);
+    await rows('a pet update still stamps updated_at', ID.cavd,
+      `update public.pets set name = name where id = $1 returning updated_at = now() as fresh`,
+      r => r[0]?.fresh === true, [tagPet.id]);
   } finally {
     await client.end().catch(() => {});
     await pg.stop().catch(() => {});
