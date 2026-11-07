@@ -1,8 +1,13 @@
 import type { AdopterPreferences, PetMatchTraits, PublicListing } from './types'
 
+/**
+ * Stage 2 scores nine criteria. Animal type is a Stage 1 filter only and is not
+ * weighted. The prototype configuration gives each criterion an equal 1/9 weight.
+ */
+const EQUAL_WEIGHT = 1 / 9
 export const MATCH_WEIGHTS = {
-  species: 0.1, size: 0.1, age: 0.1, activity: 0.1, temperament: 0.1,
-  space: 0.1, time: 0.1, children: 0.1, other_pets: 0.1, experience: 0.1
+  size: EQUAL_WEIGHT, age: EQUAL_WEIGHT, activity: EQUAL_WEIGHT, temperament: EQUAL_WEIGHT,
+  space: EQUAL_WEIGHT, time: EQUAL_WEIGHT, children: EQUAL_WEIGHT, other_pets: EQUAL_WEIGHT, experience: EQUAL_WEIGHT
 } as const
 
 export type MatchCriterion = keyof typeof MATCH_WEIGHTS
@@ -77,7 +82,7 @@ export function parseMatchDraft(raw: string | null, savedUpdatedAt?: string | nu
 }
 
 export const CRITERION_LABELS: Record<MatchCriterion, string> = {
-  species: 'animal type', size: 'size', age: 'age', activity: 'activity level',
+  size: 'size', age: 'age', activity: 'activity level',
   temperament: 'temperament', space: 'living space', time: 'daily care time',
   children: 'children compatibility', other_pets: 'pet coexistence',
   experience: 'ownership experience'
@@ -115,7 +120,6 @@ export function scoreListing(
   weights: MatchWeights = MATCH_WEIGHTS
 ): MatchResult {
   const breakdown: Record<MatchCriterion, number> = {
-    species: exact(preferences.preferred_species, listing.species),
     size: exact(preferences.preferred_size, listing.size),
     age: exact(preferences.preferred_age, listingAgeGroup(listing.birth_date, today)),
     activity: ordinal(preferences.activity_preference, traits.activity_level),
@@ -132,20 +136,19 @@ export function scoreListing(
 }
 
 /**
- * Stage 1 of matching: the few conditions that exclude a pet before scoring.
- * CAVD eligibility is already applied by the public listing view. An animal-type
- * mismatch is excluded, as is recorded incompatibility with children or other pets
- * in the adopter's home: recommending such a pet would be a safety risk, so it is
- * not merely a lower score. Every other preference is scored in Stage 2.
+ * Stage 1 of matching: the condition that excludes a pet before scoring.
+ * CAVD eligibility is already applied by the public listing view. Only an
+ * animal-type mismatch is excluded (a dog preference never scores a cat).
+ * Children and other-pet compatibility are scored in Stage 2 as two of the
+ * nine weighted criteria, so an incompatible pet ranks lower instead of
+ * disappearing, and the result lists the criterion for discussion with CAVD.
  */
 export function matchesPreferences(
   preferences: AdopterPreferences,
   listing: PublicListing,
-  traits: PetMatchTraits
+  _traits: PetMatchTraits
 ): boolean {
-  return exact(preferences.preferred_species, listing.species) === 1 &&
-    (!preferences.children_at_home || traits.child_compatible) &&
-    (!preferences.other_pets_at_home || traits.pet_compatible)
+  return exact(preferences.preferred_species, listing.species) === 1
 }
 
 export function rankListings(

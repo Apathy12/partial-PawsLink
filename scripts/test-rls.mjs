@@ -1890,6 +1890,32 @@ async function main() {
     await rows('a pet update still stamps updated_at', ID.cavd,
       `update public.pets set name = name where id = $1 returning updated_at = now() as fresh`,
       r => r[0]?.fresh === true, [tagPet.id]);
+
+    section('Migration 0022: nine-criterion matching');
+    await client.query(await readFile(join(root, 'supabase/migrations/0022_nine_criterion_matching.sql'), 'utf8'));
+    ok('applied 0022_nine_criterion_matching.sql');
+    const nineCriteria = ['size', 'age', 'activity', 'temperament', 'space', 'time', 'children', 'other_pets', 'experience'];
+    const nineSetting = (await client.query('select weights, cavd_confirmed from public.public_match_weights')).rows[0];
+    const nineTotal = Object.values(nineSetting.weights).reduce((sum, value) => sum + Number(value), 0);
+    if (Object.keys(nineSetting.weights).sort().join() === [...nineCriteria].sort().join() &&
+      Math.abs(nineTotal - 1) < 1e-6 && nineSetting.cavd_confirmed === false)
+      ok('default weights cover the nine scored criteria at 1/9 and await CAVD review');
+    else bad('default weights cover the nine scored criteria at 1/9 and await CAVD review', JSON.stringify(nineSetting));
+    const nineWeights = Object.fromEntries(nineCriteria.map(key => [key, 1 / 9]));
+    await denied('animal type can no longer be weighted', ID.cavd,
+      'select public.set_match_weights($1::jsonb)', [JSON.stringify({ ...nineWeights, species: 0 })], 'nine supported');
+    await denied('ten-criterion weights from before 0022 are rejected', ID.cavd,
+      'select public.set_match_weights($1::jsonb)', [JSON.stringify(equalWeights)], 'nine supported');
+    const childrenOnlyWeights = Object.fromEntries(nineCriteria.map(key => [key, key === 'children' ? 1 : 0]));
+    await commitAs(ID.cavd, () => client.query('select public.set_match_weights($1::jsonb)', [JSON.stringify(childrenOnlyWeights)]));
+    const nineScore = (await client.query(`select public.match_score_with_weights(p, pref, t, s.weights) as score
+      from public.pets p, public.adopter_preferences pref, public.pet_match_traits t, public.match_settings s
+      where p.id = $1 and pref.user_id = $2 and t.pet_id = $1`, [tagPet.id, tagAdopter])).rows[0]?.score;
+    if (Number(nineScore) === 100) ok('server scoring uses only the nine criteria (animal type is not scored)');
+    else bad('server scoring uses only the nine criteria (animal type is not scored)', String(nineScore));
+    await commitAs(ID.cavd, () => client.query('select public.set_match_weights($1::jsonb)', [JSON.stringify(nineWeights)]));
+    await rows('CAVD can save equal nine-criterion weights', ID.cavd,
+      'select weights from public.match_settings', r => Object.keys(r[0]?.weights ?? {}).length === 9, []);
   } finally {
     await client.end().catch(() => {});
     await pg.stop().catch(() => {});
