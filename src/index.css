@@ -211,7 +211,7 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 14px; line-height
 .timeline time { color: var(--ink); }
 .timeline .sub { margin: 8px 0; color: var(--ink); }
 .timeline .locked { margin-top: 6px; }
-.visit-history-table { min-width: 860px; }
+.visit-history-table { min-width: 940px; }
 .visit-history-table td { overflow-wrap: break-word; }
 .visit-history-table time { white-space: nowrap; }
 .visit-history-table .visit-summary-cell { min-width: 145px; max-width: 240px; }
@@ -356,18 +356,6 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 14px; line-height
 .lesson-content ul { margin: 0 0 20px; padding-left: 20px; }
 .lesson-content li + li { margin-top: 12px; }
 .lesson-content a { font-size: 14px; text-decoration: underline; }
-.knowledge-check { padding: clamp(20px, 3vw, 30px); border-radius: 20px; background: var(--canvas-wash); }
-.knowledge-check .page-head { margin-bottom: 12px; }
-.quiz-progress { color: var(--ink-muted); font-size: 14px; margin-bottom: 16px; }
-.quiz-question { min-width: 0; padding: 0; border: 0; margin: 0 0 14px; }
-.quiz-question legend { padding: 0; font-weight: 600; margin-bottom: 12px; }
-.quiz-choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.quiz-choice { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--canvas); cursor: pointer; font-size: 14px; line-height: 19px; }
-.quiz-choice input { flex: 0 0 20px; }
-.quiz-choice.selected { border-color: var(--brand); background: var(--brand-soft); }
-.quiz-question .notice { margin: 14px 0 0; }
-.quiz-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.knowledge-check > .hint { margin-top: 20px; }
 .community-card { height: 100%; margin: 0; }
 .community-card p { font-size: 16px; line-height: 24px; }
 .community-card a { font-size: 15px; font-weight: 600; }
@@ -457,7 +445,7 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 14px; line-height
   .education-hero { gap: 20px; }
   .education-hero .btn-row > a { width: 100%; }
   .bite-help { padding: 20px; }
-  .education-grid, .quiz-choices { grid-template-columns: minmax(0, 1fr); }
+  .education-grid { grid-template-columns: minmax(0, 1fr); }
   .adoption-feature-head > .btn { width: 100%; }
   .adoption-owned-row { flex-wrap: wrap; }
   .adoption-owned-row > .btn { margin-left: 60px; }

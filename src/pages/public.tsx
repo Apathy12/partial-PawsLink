@@ -51,10 +51,10 @@ export function LandingPage() {
           <p>Every pet listed is vet-cleared and reviewed by CAVD in Butuan City.</p>
           <div className="btn-row">
             <Link className="btn" to="/app/match">Find My Match <span aria-hidden="true">→</span></Link>
-            <Link className="home-hero-link" to="/register">Register your pet</Link>
+            <Link className="home-hero-link" to="/explore">Browse pets</Link>
           </div>
         </div>
-        <div className="home-hero-photo"><img src={assetUrl('/home-hero-shelter.webp')} alt="Cats and dogs resting together in a welcoming pet adoption shelter" width="1122" height="1402" fetchPriority="high" /></div>
+        <div className="home-hero-photo"><img src={assetUrl('/home-hero-shelter.webp')} alt="A person gently petting a happy aspin" width="1122" height="1402" fetchPriority="high" /></div>
       </div>
       <section id="awareness" className="public-awareness" aria-labelledby="public-awareness-title">
         <div className="page-head"><span className="step-label">Digital education</span><h2 id="public-awareness-title">Learn to care. Share what helps.</h2><p className="sub">Explore practical pet care, safer interactions, and rabies awareness before you join PawsLink.</p></div>

@@ -220,7 +220,7 @@ function WorkspaceNavIcon({ to }: { to: string }) {
 export function DashboardWelcome({ title, children, actions }: { title: string; children: ReactNode; actions: ReactNode }) {
   return <section className="dashboard-welcome">
     <div><h1>{title}</h1><p className="sub">{children}</p><div className="btn-row">{actions}</div></div>
-    <img className="dashboard-welcome-photo" src={assetUrl('/home-hero-shelter.webp')} alt="Cats and dogs in a pet adoption shelter" width="180" height="180" />
+    <img className="dashboard-welcome-photo" src={assetUrl('/home-hero-shelter.webp')} alt="A person petting a happy aspin" width="180" height="180" />
   </section>
 }
 export type TabItem = { to: string; label: string; end?: boolean; icon: keyof typeof TAB_ICONS }

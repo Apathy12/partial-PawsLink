@@ -200,6 +200,29 @@ function ClearanceCorrection({ visit, onSave }: {
   </details>
 }
 
+// Signed links expire; the image stays on screen once it has loaded.
+function VisitDocument({ visit }: { visit: Visit }) {
+  const [url, setUrl] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const path = visit.evidence_path!
+  const vaccination = visit.visit_type === 'vaccination'
+  async function load(open: boolean) {
+    if (!open || url) return
+    setError(null)
+    const { data, error: linkError } = await supabase.storage.from('visit-documents').createSignedUrl(path, 600)
+    if (linkError || !data?.signedUrl) setError(explain(linkError ?? { message: 'Document unavailable.' }))
+    else setUrl(data.signedUrl)
+  }
+  return <details className="clearance-correction visit-document" onToggle={event => void load(event.currentTarget.open)}>
+    <summary>Supporting document · {vaccination ? 'Administered' : 'Visit on'} {fmtDate(visit.visit_date)}</summary>
+    {vaccination ? <p className="sub">{visit.vaccine_name || 'Vaccine not named'} · given {fmtDate(visit.visit_date)}{visit.vaccine_next_due_on ? ` · valid through ${fmtDate(visit.vaccine_next_due_on)}` : ''}</p> : null}
+    {error ? <Notice kind="bad">{error}</Notice>
+      : !url ? <p className="sub" role="status">Loading document…</p>
+      : path.endsWith('.pdf') ? <a href={url} target="_blank" rel="noreferrer">Open the PDF document</a>
+      : <a href={url} target="_blank" rel="noreferrer"><img src={url} alt={`Supporting document for the ${fmtDate(visit.visit_date)} visit`} /></a>}
+  </details>
+}
+
 export function VisitHistory({ visits, canCorrect, onCorrectClearance, petName }: {
   visits: Visit[]
   canCorrect?: (visit: Visit) => void
@@ -226,8 +249,8 @@ export function VisitHistory({ visits, canCorrect, onCorrectClearance, petName }
   if (!visits.length) return <>
     <div className="table-wrap visit-history-wrap"><table className="tbl visit-history-table">
       <caption className="sr-only">Past veterinary visits</caption>
-      <thead><tr><th scope="col">Date</th><th scope="col">Visit</th><th scope="col">Clinic</th><th scope="col">Summary</th><th scope="col">Clearance</th><th scope="col">Record status</th><th scope="col">Details</th></tr></thead>
-      <tbody><tr><td colSpan={7}><Empty>No veterinary visits have been recorded for {petName || 'this pet'} yet.</Empty></td></tr></tbody>
+      <thead><tr><th scope="col">Date</th><th scope="col">Visit</th><th scope="col">Document</th><th scope="col">Clinic</th><th scope="col">Summary</th><th scope="col">Clearance</th><th scope="col">Record status</th><th scope="col">Details</th></tr></thead>
+      <tbody><tr><td colSpan={8}><Empty>No veterinary visits have been recorded for {petName || 'this pet'} yet.</Empty></td></tr></tbody>
     </table></div>
     <section className="visit-selected"><h3>Full visit record</h3><p className="sub">Record a real visit to see its complete details here.</p></section>
   </>
@@ -236,10 +259,11 @@ export function VisitHistory({ visits, canCorrect, onCorrectClearance, petName }
     {documentError ? <Notice kind="bad">{documentError}</Notice> : null}
     <div className="table-wrap visit-history-wrap"><table className="tbl visit-history-table">
       <caption className="sr-only">Past veterinary visits</caption>
-      <thead><tr><th scope="col">Date</th><th scope="col">Visit</th><th scope="col">Clinic</th><th scope="col">Summary</th><th scope="col">Clearance</th><th scope="col">Record status</th><th scope="col">Details</th></tr></thead>
+      <thead><tr><th scope="col">Date</th><th scope="col">Visit</th><th scope="col">Document</th><th scope="col">Clinic</th><th scope="col">Summary</th><th scope="col">Clearance</th><th scope="col">Record status</th><th scope="col">Details</th></tr></thead>
       <tbody>{visits.map(visit => <tr className={selected.id === visit.id ? 'visit-row-selected' : undefined} key={visit.id}>
         <td><time dateTime={visit.visit_date}>{fmtDate(visit.visit_date)}</time></td>
         <td>{visitKinds[visit.visit_type] || 'Visit'}</td>
+        <td>{visit.evidence_path ? <button className="btn btn-sm btn-outline" type="button" aria-label={`View supporting document for the ${fmtDate(visit.visit_date)} visit`} onClick={() => void openDocument(visit.evidence_path!)}>View</button> : <span className="sub">None</span>}</td>
         <td>{visit.clinic_name}</td>
         <td className="visit-summary-cell">{visit.summary.length > 110 ? `${visit.summary.slice(0, 107)}…` : visit.summary}</td>
         <td>{clearancePill(visit.clearance_status)}</td>
@@ -253,6 +277,7 @@ export function VisitHistory({ visits, canCorrect, onCorrectClearance, petName }
         {canCorrect ? <button className="btn btn-sm btn-outline" type="button" onClick={() => canCorrect(selected)}>Correct summary with note</button> : null}
       </div>
       {onCorrectClearance ? <ClearanceCorrection key={selected.id + selected.clearance_status} visit={selected} onSave={onCorrectClearance} /> : null}
+      {selected.evidence_path ? <VisitDocument key={selected.id} visit={selected} /> : null}
       <div className="table-wrap visit-record-wrap"><table className="tbl visit-record-table">
         <caption className="sr-only">Full record for the {fmtDate(selected.visit_date)} visit</caption>
         <tbody>
@@ -291,7 +316,7 @@ export function VisitHistory({ visits, canCorrect, onCorrectClearance, petName }
           <RecordRow label="Status" value={recordStatus(selected)} />
           <RecordRow label="Added on" value={fmtDate(selected.created_at)} />
           <RecordRow label="CAVD correction note" value={selected.correction_note} />
-          <RecordRow label="Supporting document" value={selected.evidence_path ? <button className="record-link evidence-link" type="button" onClick={() => void openDocument(selected.evidence_path!)}>Open private document</button> : null} />
+          <RecordRow label="Supporting document" value={selected.evidence_path ? 'Attached · see Supporting document above' : null} />
         </tbody>
       </table></div>
     </section>

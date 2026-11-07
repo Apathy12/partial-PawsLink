@@ -97,7 +97,7 @@ p { max-width: 75ch; }
   margin: 22px clamp(25px, 4.4vw, 60px) 44px 0;
   border-radius: 22px;
 }
-.home-hero-photo img { object-position: center 38%; }
+.home-hero-photo img { object-position: center 56%; }
 .public-awareness { padding-top: 78px; }
 .public-awareness > .page-head, .home-next-steps > .page-head { text-align: center; }
 .public-awareness > .page-head h2, .home-next-steps > .page-head h2 {
@@ -148,9 +148,6 @@ p { max-width: 75ch; }
 .community-card:nth-child(2) { background: var(--brand-soft); }
 .bite-help { border: 0; border-radius: 16px; background: var(--brand-soft); }
 .bite-help h2 { font: 800 1.5rem/1.15 var(--font-title); }
-.knowledge-check { border-radius: 18px; background: var(--brand-soft); }
-.quiz-choice { background: var(--paper); }
-.quiz-choice.selected { box-shadow: inset 0 0 0 2px var(--brand); }
 .adoption-feature { border: 0; border-radius: 18px; background: var(--brand-soft); }
 .adoption-feature .pet-card { background: var(--paper); }
 .adoption-feature-head h2 { font-size: clamp(2rem, 3vw, 3rem); }
@@ -328,7 +325,6 @@ input[type='range'].match-slider-input { width: 100%; height: 44px; min-height: 
      originals are framed so every pet's head stays in view. */
   .home-hero-photo, .education-hero-photo { justify-self: center; width: calc(100% - 72px); max-width: 560px; min-height: 0; aspect-ratio: 4 / 3; }
   .education-hero-photo { width: 100%; }
-  .home-hero-photo img { object-position: center 47%; }
   .education-hero-photo img { object-position: center 45%; }
 }
 @media (max-width: 899px) {
@@ -545,4 +541,5 @@ input[type='range'].match-slider-input { width: 100%; height: 44px; min-height: 
 .clearance-correction { margin-block: 12px; }
 .clearance-correction summary { cursor: pointer; font-weight: 600; }
 .clearance-correction form { margin-top: 12px; }
+.visit-document img { display: block; max-width: 100%; max-height: 420px; margin-top: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); object-fit: contain; }
 .dashboard-metrics:has(> :nth-child(3):last-child) { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
