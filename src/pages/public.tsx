@@ -115,9 +115,13 @@ export function LoginPage() {
   )
 }
 
+/** Bump when the wording of the data privacy notice changes. */
+const PRIVACY_NOTICE_VERSION = '2026-11'
+
 export function RegisterPage() {
   const { signUp, session, profile, verification, configured } = useAuth()
   const nav = useNavigate()
+  const [privacyAgreed, setPrivacyAgreed] = useState(false)
   const [name, setName] = useState('')
   const [contact, setContact] = useState('')
   const [email, setEmail] = useState('')
@@ -133,9 +137,10 @@ export function RegisterPage() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
     setBusy(true); setErr(null)
+    if (!privacyAgreed) { setErr('Read the data privacy notice and tick the box to continue.'); setBusy(false); return }
     if (turnstileSiteKey && !captchaToken) { setErr('Complete the security check first.'); setBusy(false); return }
     try {
-      const result = await signUp(email.trim(), password, name.trim(), contact.trim(), captchaToken || undefined)
+      const result = await signUp(email.trim(), password, name.trim(), contact.trim(), PRIVACY_NOTICE_VERSION, captchaToken || undefined)
       if (result.error) { setErr(result.error); return }
       if (result.needsConfirmation) {
         nav('/check-email', { replace: true, state: { email: email.trim() } })
@@ -165,6 +170,15 @@ export function RegisterPage() {
           <Field label="Password" hint="At least 8 characters.">
             <input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} />
           </Field>
+          <section className="privacy-notice" aria-labelledby="privacy-notice-title">
+            <h2 id="privacy-notice-title">Data privacy notice</h2>
+            <p>PawsLink collects your name, contact number and email address, the government ID you upload for verification, and the pet and adoption records you submit. The City Agriculture and Veterinary Department (CAVD) uses this information only to verify your account, process pet registrations and adoption applications, and contact you about them.</p>
+            <p>Uploaded IDs are visible only to authorized CAVD reviewers and are never shown on public pet profiles. Your information is processed in accordance with the Data Privacy Act of 2012 (Republic Act No. 10173). You may ask CAVD to access or correct your personal information.</p>
+          </section>
+          <label className="check-row consent-row">
+            <input type="checkbox" checked={privacyAgreed} onChange={e => setPrivacyAgreed(e.target.checked)} required />
+            <span>I have read the data privacy notice and agree to the collection and processing of my personal information for these purposes.</span>
+          </label>
           <TurnstileChallenge onToken={setCaptchaToken} resetKey={captchaReset} />
           <button className="btn" type="submit" disabled={busy}>{busy ? 'Creating…' : 'Create account'}</button>
         </form>

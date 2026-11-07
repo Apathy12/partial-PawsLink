@@ -230,6 +230,12 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 14px; line-height
 .record-fields h3 { margin-top: 0; }
 .check-row { display: flex; align-items: center; gap: 10px; margin: 16px 0; }
 .check-row input { width: auto; }
+.privacy-notice { margin: 16px 0 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--canvas); }
+.privacy-notice h2 { margin: 0 0 6px; font-size: 1rem; }
+.privacy-notice p { margin: 0 0 8px; font-size: 0.9rem; }
+.privacy-notice p:last-child { margin-bottom: 0; }
+.consent-row { align-items: flex-start; }
+.consent-row input { flex-shrink: 0; margin-top: 2px; }
 .evidence-link { border: 0; padding: 0; background: none; cursor: pointer; }
 .stat { border-bottom: 1px solid var(--line); padding: 16px 0; }
 .stat .n { font: 600 36px/40px var(--font-title); color: var(--brand); }
