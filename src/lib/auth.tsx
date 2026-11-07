@@ -14,7 +14,7 @@ type AuthValue = {
   loading: boolean
   configured: boolean
   signIn: (email: string, password: string, captchaToken?: string) => Promise<string | null>
-  signUp: (email: string, password: string, name: string, contact: string, captchaToken?: string) => Promise<{ error: string | null; needsConfirmation: boolean }>
+  signUp: (email: string, password: string, name: string, contact: string, privacyNoticeVersion: string, captchaToken?: string) => Promise<{ error: string | null; needsConfirmation: boolean }>
   signOut: () => Promise<void>
   refresh: () => Promise<void>
 }
@@ -91,14 +91,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return explain(cause as { message?: string })
       }
     },
-    async signUp(email, password, name, contact, captchaToken) {
+    async signUp(email, password, name, contact, privacyNoticeVersion, captchaToken) {
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           emailRedirectTo: appUrl('/verify'),
           ...(captchaToken ? { captchaToken } : {}),
-          data: { name, contact, profile_setup_complete: false }
+          data: {
+            name, contact, profile_setup_complete: false,
+            // Record of the user's agreement to the Data Privacy Act (RA 10173) notice.
+            privacy_notice_version: privacyNoticeVersion,
+            privacy_consent_at: new Date().toISOString()
+          }
         }
       })
       return { error: error ? explain(error) : null, needsConfirmation: !error && !data.session }
