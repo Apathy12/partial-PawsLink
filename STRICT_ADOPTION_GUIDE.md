@@ -10,7 +10,7 @@ Source changes remain local. Migration `0018_strict_adoption_rules.sql` was veri
 |---|---|---|
 | Adoption readiness | Approved registration and listing | Those approvals plus Available status, current vaccination, completed sterilization, cleared behavior, a Cleared latest veterinary visit and recorded CAVD review |
 | Previously registered pets | Could appear once their listing was approved | Start on Hold until CAVD explicitly reviews eligibility; old decisions and ownership records stay intact |
-| Match weights | Ten fixed equal weights | CAVD can set ten weights totaling 1.00; each save is versioned |
+| Match weights | Nine fixed equal weights (1/9 each) | CAVD can set nine weights totaling 1.00; each save is versioned. Animal type is a filter, not a weight |
 | Match explanation | Overall score and considerations | Overall score plus each criterion’s fit and configured weight |
 | Public browsing | Adoption list required a user login | `/explore` lets visitors browse eligible pets; applying still requires a verified active user account |
 | Results | Save or view a pet | Skip a pet in the current results and restore skipped pets |
