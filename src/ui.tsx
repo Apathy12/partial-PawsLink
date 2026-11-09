@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useState, type InputHTMLAttributes, type ReactNode } from 'react'
 import { NavLink } from 'react-router-dom'
 import { CLEARANCE_LABELS } from './lib/eligibility'
 import type { Application, Pet, PublicListing, Visit } from './lib/types'
@@ -56,8 +56,22 @@ export function discoveryPill(path: Application['discovery_path']) {
   return path === 'match' ? <Pill kind="match">From Find My Match</Pill> : <Pill kind="neutral">From Direct Adoption</Pill>
 }
 
-export function originBadge(custodySource: Pet['custody_source']) {
-  return custodySource === 'shelter' ? <Pill kind="origin-shelter">Shelter pet</Pill> : <Pill kind="origin-private">Private owner</Pill>
+/** Shelter animals vs. owner-rehomed pets; an unlisted owner pet is simply privately owned. */
+export function originBadge(custodySource: Pet['custody_source'], listed = true) {
+  if (custodySource === 'shelter') return <Pill kind="origin-shelter">Shelter pet</Pill>
+  return <Pill kind="origin-private">{listed ? 'Rehome pet' : 'Private owner'}</Pill>
+}
+
+/** A password input with a Show/Hide toggle. */
+export function PasswordInput(props: Omit<InputHTMLAttributes<HTMLInputElement>, 'type'>) {
+  const [visible, setVisible] = useState(false)
+  return <span className="password-input">
+    <input {...props} type={visible ? 'text' : 'password'} />
+    <button type="button" className="password-toggle" aria-pressed={visible}
+      aria-label={visible ? 'Hide password' : 'Show password'} onClick={() => setVisible(current => !current)}>
+      {visible ? 'Hide' : 'Show'}
+    </button>
+  </span>
 }
 
 export function sourcePill(source: string) {
