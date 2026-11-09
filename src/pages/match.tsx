@@ -141,8 +141,8 @@ export function UserMatch() {
     {!loading && !error ? <>
       <form className="card match-form" onSubmit={event => void submit(event)}>
         <div className="page-head"><h2>Your preferences</h2>
-          <p className="sub">Pets are ranked by how closely they fit all your answers, weighted by CAVD. Only a different animal type, or a pet not comfortable with the children or other pets in your home, is left out. “No preference” accepts any value for that field.</p>
-          <p className="sub">{weightsConfirmed ? `CAVD-reviewed weights, version ${weightVersion}.` : 'Default equal weights; CAVD weight review is pending.'} A high score never overrides a mismatch.</p>
+          <p className="sub">Pets are ranked by how closely they fit your answers, weighted by CAVD. Only a pet of a different animal type is left out; comfort with children and other pets is scored with the other criteria. “No preference” accepts any value for that field.</p>
+          <p className="sub">{weightsConfirmed ? `CAVD-reviewed weights, version ${weightVersion}.` : 'Default equal weights; CAVD weight review is pending.'} The score helps you compare pets; CAVD makes every adoption decision.</p>
         </div>
         <div className="match-dropdown-grid">
           <Field label="Preferred animal type"><select name="preferred_species" value={answers.preferred_species} onChange={event => update('preferred_species', event.target.value as Answers['preferred_species'])}>
@@ -194,8 +194,8 @@ export function UserMatch() {
             </div>
             <div className="match-score"><strong>{match.score.toFixed(1)}%</strong><span>compatibility</span></div>
           </article>
-        })}</div> : <Empty>{matches.length ? 'You have skipped all current matches. Restore skipped pets to see them again.' : outsidePreferences > 0 ? 'No eligible pet fits your animal type and household. Try another animal type, or browse all adoption pets.' : 'No eligible pets with reviewed matching traits are available yet.'}</Empty>}
-        {outsidePreferences > 0 ? <p className="sub">{outsidePreferences} eligible pet{outsidePreferences === 1 ? ' is' : 's are'} a different animal type or not comfortable with the children or other pets in your home, so {outsidePreferences === 1 ? 'it is' : 'they are'} left out of these matches. <Link to="/app/bridge">Browse adoption pets</Link>.</p> : null}
+        })}</div> : <Empty>{matches.length ? 'You have skipped all current matches. Restore skipped pets to see them again.' : outsidePreferences > 0 ? 'No eligible pet matches your preferred animal type. Try another animal type, or browse all adoption pets.' : 'No eligible pets with reviewed matching traits are available yet.'}</Empty>}
+        {outsidePreferences > 0 ? <p className="sub">{outsidePreferences} eligible pet{outsidePreferences === 1 ? ' is' : 's are'} a different animal type, so {outsidePreferences === 1 ? 'it is' : 'they are'} left out of these matches. <Link to="/app/bridge">Browse adoption pets</Link>.</p> : null}
         {unscored > 0 ? <p className="sub">{unscored} other approved pet{unscored === 1 ? '' : 's'} can be browsed, but need CAVD-reviewed traits before receiving a score. <Link to="/app/bridge">Browse all pets</Link>.</p> : null}
       </section> : null}
     </> : null}
