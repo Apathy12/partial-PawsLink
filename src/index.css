@@ -236,6 +236,10 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 14px; line-height
 .privacy-notice h2 { margin: 0 0 6px; font-size: 1rem; }
 .privacy-notice p { margin: 0 0 8px; font-size: 0.9rem; }
 .privacy-notice p:last-child { margin-bottom: 0; }
+.password-input { position: relative; display: block; }
+.password-input input { padding-right: 76px; }
+.password-toggle { position: absolute; top: 50%; right: 6px; transform: translateY(-50%); padding: 6px 12px; border: 0; border-radius: 8px; background: transparent; color: var(--ink); font: 600 0.85rem var(--font-body); cursor: pointer; }
+.password-toggle:hover, .password-toggle:focus-visible { background: var(--canvas-wash); }
 .consent-row { align-items: flex-start; }
 .consent-row input { flex-shrink: 0; margin-top: 2px; }
 .evidence-link { border: 0; padding: 0; background: none; cursor: pointer; }

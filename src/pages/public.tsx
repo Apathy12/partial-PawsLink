@@ -7,7 +7,7 @@ import { accountDestination } from '../lib/onboarding'
 import { TurnstileChallenge } from '../lib/turnstile'
 import { turnstileSiteKey } from '../lib/turnstile-config'
 import type { PublicPet } from '../lib/types'
-import { CivicFrame, Field, Notice, PetCode, Photo, Pill, originBadge } from '../ui'
+import { CivicFrame, Field, Notice, PasswordInput, PetCode, Photo, Pill, originBadge } from '../ui'
 import { EducationHome } from './education'
 
 export function SetupPage() {
@@ -105,7 +105,7 @@ export function LoginPage() {
         {err ? <Notice kind="bad">{err}</Notice> : null}
         <form onSubmit={onSubmit}>
           <Field label="Email"><input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="username" /></Field>
-          <Field label="Password"><input type="password" value={password} onChange={e => setPassword(e.target.value)} required autoComplete="current-password" /></Field>
+          <Field label="Password"><PasswordInput value={password} onChange={e => setPassword(e.target.value)} required autoComplete="current-password" /></Field>
           <TurnstileChallenge onToken={setCaptchaToken} resetKey={captchaReset} />
           <button className="btn" type="submit" disabled={busy}>{busy ? 'Logging in…' : 'Log in'}</button>
         </form>
@@ -168,7 +168,7 @@ export function RegisterPage() {
           <Field label="Contact number"><input value={contact} onChange={e => setContact(e.target.value)} /></Field>
           <Field label="Email"><input type="email" value={email} onChange={e => setEmail(e.target.value)} required /></Field>
           <Field label="Password" hint="At least 8 characters.">
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} />
+            <PasswordInput value={password} onChange={e => setPassword(e.target.value)} required minLength={8} autoComplete="new-password" />
           </Field>
           <section className="privacy-notice" aria-labelledby="privacy-notice-title">
             <h2 id="privacy-notice-title">Data privacy notice</h2>
@@ -245,7 +245,7 @@ export function PublicPetPage() {
           <li>{speciesLabel(pet.species)} · {sexLabel(pet.sex)} · {ageLabel(pet.birth_date)}</li>
           <li className={pet.rabies_vaccinated ? 'fact-ok' : ''}>{pet.rabies_vaccinated ? '✓ Rabies vaccinated' : 'Rabies not marked'}</li>
           <li className={pet.sterilized ? 'fact-ok' : ''}>{pet.sterilized ? '✓ Sterilised' : 'Not sterilised'}</li>
-          <li className="fact-badge">{originBadge(pet.custody_source)}</li>
+          <li className="fact-badge">{originBadge(pet.custody_source, pet.is_listed)}</li>
           {pet.is_listed ? <li className="fact-highlight">Available for adoption</li> : null}
         </ul> : null}
       </div>

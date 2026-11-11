@@ -58,6 +58,19 @@ function ApplicationHistory({ events }: { events: ApplicationEvent[] }) {
   </section>
 }
 
+function readApplicationDraft(key: string): { answers: ApplicationAnswers; declared: boolean } {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(key) || 'null') as { answers?: unknown; declared?: unknown } | null
+    const raw = saved?.answers
+    const answers = raw && typeof raw === 'object' && !Array.isArray(raw)
+      ? Object.fromEntries(Object.entries(raw as Record<string, unknown>).filter(([, value]) => typeof value === 'string')) as ApplicationAnswers
+      : {}
+    return { answers, declared: saved?.declared === true }
+  } catch {
+    return { answers: {}, declared: false }
+  }
+}
+
 export function UserApply() {
   const { id } = useParams()
   const [params] = useSearchParams()
@@ -77,8 +90,13 @@ export function UserApply() {
   const submitting = useRef(false)
   const [error, setError] = useState<string | null>(null)
   const [errors, setErrors] = useState<string[]>([])
+  // Unsent answers are kept for this browser tab, so a refresh or a detour does not lose them.
+  const draftKey = profile && id ? `pawslink-application-draft:${profile.id}:${id}` : null
+  const profileRef = useRef(profile)
+  profileRef.current = profile
 
   useEffect(() => {
+    const profile = profileRef.current
     if (!id || !profile) return
     let active = true
     ;(async () => {
@@ -103,6 +121,7 @@ export function UserApply() {
       const pref = prefResult.data as AdopterPreferences | null
       setPreferences(pref)
       const experience = ['', 'First-time owner', 'Some exposure', 'Some experience', 'Experienced owner', 'Very experienced handler']
+      const draft = readApplicationDraft(`pawslink-application-draft:${profile.id}:${id}`)
       setAnswers({
         full_name: profile.name || '', address: profile.location || '', phone: profile.contact || '',
         email: session?.user.email || '', birth_date: profile.birth_date || '',
@@ -110,12 +129,19 @@ export function UserApply() {
           children_present: pref.children_at_home ? 'Yes' : 'No',
           current_pets: pref.other_pets_at_home ? 'Yes' : 'No',
           ownership_experience: experience[pref.ownership_experience] || ''
-        } : {})
+        } : {}),
+        ...draft.answers
       })
+      setDeclared(draft.declared)
       setLoading(false)
     })()
     return () => { active = false }
-  }, [id, profile, session?.user.email, source])
+  }, [id, profile?.id, session?.user.email, source])
+
+  useEffect(() => {
+    if (!draftKey || loading) return
+    try { sessionStorage.setItem(draftKey, JSON.stringify({ answers, declared })) } catch { /* storage unavailable */ }
+  }, [draftKey, loading, answers, declared])
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -134,7 +160,10 @@ export function UserApply() {
       })
       if (submitError) setError(explain(submitError))
       else if (typeof data !== 'string') setError('Your application could not be confirmed. Please try again.')
-      else navigate(`/app/applications/${data}`)
+      else {
+        if (draftKey) { try { sessionStorage.removeItem(draftKey) } catch { /* storage unavailable */ } }
+        navigate(`/app/applications/${data}`)
+      }
     } catch (cause) {
       setError(explain(cause as { message?: string }))
     } finally {

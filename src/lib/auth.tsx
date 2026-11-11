@@ -27,6 +27,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [verification, setVerification] = useState<VerificationRequest | null>(null)
   const [loading, setLoading] = useState(true)
   const loadNumber = useRef(0)
+  // The account currently loaded, so that token refreshes do not reload the app.
+  const userId = useRef<string | null | undefined>(undefined)
 
   async function loadProfile(s: Session | null) {
     const number = ++loadNumber.current
@@ -65,11 +67,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(({ data }) => {
       if (!alive) return
       setSession(data.session)
+      userId.current = data.session?.user.id ?? null
       return loadProfile(data.session)
     }).finally(() => { if (alive) setLoading(false) })
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, next) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, next) => {
       setSession(next)
+      const nextUserId = next?.user.id ?? null
+      // Returning to the tab refreshes the token and re-announces the same user.
+      // Showing the loading screen here would unmount the page and erase typed input,
+      // so only a different account (sign-in, sign-out) reloads the app.
+      if (nextUserId === userId.current) {
+        if (event === 'USER_UPDATED') void loadProfile(next)
+        return
+      }
+      userId.current = nextUserId
       setLoading(true)
       void loadProfile(next).finally(() => { if (alive) setLoading(false) })
     })
