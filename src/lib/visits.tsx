@@ -215,11 +215,17 @@ function VisitDocument({ visit }: { visit: Visit }) {
   }
   return <details className="clearance-correction visit-document" onToggle={event => void load(event.currentTarget.open)}>
     <summary>Supporting document · {vaccination ? 'Administered' : 'Visit on'} {fmtDate(visit.visit_date)}</summary>
-    {vaccination ? <p className="sub">{visit.vaccine_name || 'Vaccine not named'} · given {fmtDate(visit.visit_date)}{visit.vaccine_next_due_on ? ` · valid through ${fmtDate(visit.vaccine_next_due_on)}` : ''}</p> : null}
-    {error ? <Notice kind="bad">{error}</Notice>
-      : !url ? <p className="sub" role="status">Loading document…</p>
-      : path.endsWith('.pdf') ? <a href={url} target="_blank" rel="noreferrer">Open the PDF document</a>
-      : <a href={url} target="_blank" rel="noreferrer"><img src={url} alt={`Supporting document for the ${fmtDate(visit.visit_date)} visit`} /></a>}
+    <div className="table-wrap"><table className="tbl">
+      <thead><tr><th scope="col">Date</th><th scope="col">Photo</th><th scope="col">{vaccination ? 'Type of vaccine' : 'Type of visit'}</th></tr></thead>
+      <tbody><tr>
+        <td>{fmtDate(visit.visit_date)}{vaccination && visit.vaccine_next_due_on ? <div className="sub">Valid through {fmtDate(visit.vaccine_next_due_on)}</div> : null}</td>
+        <td>{error ? <Notice kind="bad">{error}</Notice>
+          : !url ? <p className="sub" role="status">Loading document…</p>
+          : path.endsWith('.pdf') ? <a href={url} target="_blank" rel="noreferrer">Open the PDF document</a>
+          : <a href={url} target="_blank" rel="noreferrer"><img src={url} alt={`Supporting document for the ${fmtDate(visit.visit_date)} visit`} /></a>}</td>
+        <td>{vaccination ? visit.vaccine_name || 'Vaccine not named' : visitKinds[visit.visit_type] || 'Visit'}</td>
+      </tr></tbody>
+    </table></div>
   </details>
 }
 

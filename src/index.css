@@ -172,6 +172,8 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 14px; line-height
 .tbl td.btn-row { display: table-cell; min-width: 200px; }
 .tbl td.btn-row > * { margin: 0 8px 6px 0; }
 .table-pet { display: flex; align-items: center; gap: 12px; }
+.table-pet > div:not(.avatar) { display: grid; justify-items: start; gap: 4px; min-width: 0; }
+.table-pet .pet-code { margin-top: 2px; }
 .table-pet .avatar { width: 44px; height: 44px; flex-basis: 44px; }
 .site-office .table-pet .avatar { width: 60px; height: 60px; flex-basis: 60px; }
 .registry-detail-photo { width: 112px; height: 112px; flex-basis: 112px; }

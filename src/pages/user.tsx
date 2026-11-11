@@ -541,7 +541,7 @@ export function UserApplications() {
         <p className="sub">CAVD reviews every application. Only CAVD can approve an adoption.</p>
       </div>
       {rows.length === 0 ? <Empty>No applications yet.</Empty> : (
-        <div className="card">
+        <div className="card application-cards">
           <div className="table-wrap">
             <table className="tbl">
               <thead><tr><th>Pet</th><th>Submitted</th><th>Review stage</th><th>Next step</th></tr></thead>

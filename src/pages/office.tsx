@@ -24,7 +24,6 @@ export function OfficeShell({ children, counts }: { children: ReactNode; counts?
     <Shell
       who={profile?.name || ''}
       roleLabel="CAVD staff"
-      extra={<span className="sub">The city is the system of record.</span>}
       onSignOut={() => void signOut()}
       nav={[
         { to: '/office', label: 'Dashboard', end: true },
@@ -474,7 +473,7 @@ export function OfficeApplications() {
         <thead><tr><th>Applicant</th><th>Pet</th><th>Path</th><th>Review stage</th><th>Actions</th></tr></thead><tbody>{open.map(a => (
         <tr key={a.id}>
           <td>{a.adopter?.name}<div className="sub">{a.adopter?.contact || a.adopter?.id}</div></td>
-          <td><div className="table-pet"><div className="avatar"><Photo url={a.pet?.photo_url} name={a.pet?.name || 'Pet'} /></div><div><span className="pet-name">{a.pet?.name}</span>{a.pet ? <PetCode code={a.pet.qr_slug} compact /> : null}<div className="sub">{a.pet?.owner_id ? `Owner: ${a.owner?.name || 'Registered owner'}` : 'CAVD shelter'}</div>{a.owner?.contact ? <div className="sub">{a.owner.contact}</div> : null}</div></div></td>
+          <td><div className="table-pet"><div className="avatar"><Photo url={a.pet?.photo_url} name={a.pet?.name || 'Pet'} /></div><div><span className="pet-name">{a.pet?.name}</span><div className="sub">{a.pet?.owner_id ? `Owner: ${a.owner?.name || 'Registered owner'}` : 'CAVD shelter'}</div>{a.owner?.contact ? <div className="sub">{a.owner.contact}</div> : null}{a.pet ? <PetCode code={a.pet.qr_slug} compact /> : null}</div></div></td>
           <td>{discoveryPill(a.discovery_path)}</td>
           <td>{stageLabel(a.review_stage, a.status)}{a.application_source === 'direct' ? <div className="sub">Direct adoption request</div> : null}</td>
           <td>
@@ -515,6 +514,7 @@ export function OfficeIntake() {
   const { ok, bad, toasts } = useToasts()
   const [busy, setBusy] = useState(false)
   const [alsoList, setAlsoList] = useState(true)
+  const [rabies, setRabies] = useState(false)
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -570,9 +570,9 @@ export function OfficeIntake() {
         <h1>Shelter intake</h1>
         <p className="sub">For animals already in city custody. Create the pet record, then complete the adoption eligibility review before publishing a listing.</p>
       </div>
-      <form className="card" onSubmit={onSubmit} style={{ maxWidth: '42rem' }}>
-        <Field label="Name given at the shelter"><input name="name" required /></Field>
-        <div className="grid grid-2">
+      <form className="card pet-details-form" onSubmit={onSubmit}>
+        <div className="grid pet-details-grid">
+          <Field label="Name given at the shelter"><input name="name" required /></Field>
           <Field label="Species">
             <select name="species"><option value="dog">Dog</option><option value="cat">Cat</option><option value="other">Other</option></select>
           </Field>
@@ -586,17 +586,21 @@ export function OfficeIntake() {
           <Field label="Estimated birth date"><input type="date" name="birth_date" required /></Field>
           <Field label="Weight (kg)"><input type="number" name="weight_kg" min="0.01" max="500" step="0.01" /></Field>
           <Field label="Colour"><input name="color" /></Field>
+          <Field label="Markings"><input name="markings" /></Field>
+          <Field label="Photo"><input type="file" name="photo" accept="image/*" /></Field>
         </div>
-        <Field label="Markings"><input name="markings" /></Field>
-        <Field label="Notes / listing description"><textarea name="about" /></Field>
-        <Field label="Photo"><input type="file" name="photo" accept="image/*" /></Field>
-        <label className="field" style={{ fontWeight: 400 }}><input type="checkbox" name="sterilized" /> Already sterilised</label>
-        <label className="field" style={{ fontWeight: 400 }}><input type="checkbox" name="rabies" /> Rabies vaccinated (public flag)</label>
-        <Field label="Rabies date, if marked"><input type="date" name="rabies_on" /></Field>
-        <label className="field" style={{ fontWeight: 400 }}>
-          <input type="checkbox" checked={alsoList} onChange={e => setAlsoList(e.target.checked)} /> Create a pending adoption listing for review
-        </label>
-        <button className="btn" type="submit" disabled={busy}>{busy ? 'Saving…' : 'Create pet record'}</button>
+        <div className="pet-form-tail">
+          <Field label="Notes / listing description"><textarea name="about" /></Field>
+          <div>
+            <label className="check-row"><input type="checkbox" name="sterilized" /> Already sterilised</label>
+            <label className="check-row"><input type="checkbox" name="rabies" checked={rabies} onChange={e => setRabies(e.target.checked)} /> Rabies vaccinated (public flag)</label>
+            {rabies ? <Field label="Rabies vaccination date"><input type="date" name="rabies_on" /></Field> : null}
+          </div>
+        </div>
+        <div className="visit-form-footer">
+          <label className="check-row"><input type="checkbox" checked={alsoList} onChange={e => setAlsoList(e.target.checked)} /> Create a pending adoption listing for review</label>
+          <button className="btn" type="submit" disabled={busy}>{busy ? 'Saving…' : 'Create pet record'}</button>
+        </div>
       </form>
     </OfficeShell>
   )

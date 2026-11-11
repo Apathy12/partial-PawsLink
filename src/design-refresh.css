@@ -457,28 +457,45 @@ input[type='range'].match-slider-input { width: 100%; height: 44px; min-height: 
 .tracker-dot.current { background: var(--lime); box-shadow: 0 0 0 1.5px var(--brand); }
 .tracker-dot.declined { background: #b5473a; }
 
+/* ---- My applications: one card per application on phones, no sideways swipe ---- */
+@media (max-width: 600px) {
+  .application-cards { padding: 0; border: 0; background: none; box-shadow: none; }
+  .application-cards .table-wrap { border: 0; border-radius: 0; background: none; overflow: visible; }
+  .application-cards .table-wrap::before, .application-cards thead { display: none; }
+  .application-cards .tbl, .application-cards tbody { display: block; background: none; }
+  .application-cards .tbl tbody tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px 12px; padding: 16px; margin-bottom: 12px; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); }
+  .application-cards .tbl tr:last-child { margin-bottom: 0; }
+  .application-cards .tbl td { display: block; padding: 0; border: 0; }
+  .application-cards .tbl td:first-child { font: 600 20px/1.2 var(--font-title); }
+  .application-cards .tbl td:nth-child(2) { color: var(--ink-muted); }
+  .application-cards .tbl td:nth-child(n + 3) { grid-column: 1 / -1; }
+  .application-cards .tbl .btn { display: block; text-align: center; }
+}
+
 /* ---- Bottom tab bar for signed-in owners on phones ---- */
 .tabbar { display: none; }
 @media (max-width: 760px) {
   .site-user.has-tabbar .servicebar { display: none; }
   .has-tabbar .tabbar {
     position: fixed;
-    inset: auto 0 0;
+    inset: auto 12px calc(12px + env(safe-area-inset-bottom));
     z-index: 60;
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 2px;
-    padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
+    padding: 6px;
+    border-radius: 22px;
     background: var(--header);
-    box-shadow: 0 -8px 22px rgba(10, 20, 14, .18);
+    box-shadow: 0 8px 22px rgba(10, 20, 14, .28);
   }
-  .tabbar a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 54px; min-width: 0; border-radius: 12px; color: var(--hero-muted); font-size: 12px; font-weight: 600; line-height: 14px; text-decoration: none; }
+  .tabbar a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 54px; min-width: 0; border-radius: 16px; color: var(--hero-muted); font-size: 12px; font-weight: 600; line-height: 14px; text-decoration: none; }
   .tabbar a span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tabbar svg { width: 24px; height: 24px; }
   .tabbar a.active { background: rgba(183, 255, 114, .14); color: var(--lime); }
   .tabbar a:focus-visible { outline: 2px solid var(--lime); outline-offset: -2px; }
-  .has-tabbar .footer-note { padding-bottom: calc(70px + env(safe-area-inset-bottom)); }
-  .has-tabbar #toasts { bottom: calc(80px + env(safe-area-inset-bottom)); }
+  .has-tabbar .footer-note { display: none; }
+  .has-tabbar .layout { padding-bottom: calc(100px + env(safe-area-inset-bottom)); }
+  .has-tabbar #toasts { bottom: calc(92px + env(safe-area-inset-bottom)); }
 }
 
 /* ---- Lighter header on phones ---- */
@@ -541,5 +558,10 @@ input[type='range'].match-slider-input { width: 100%; height: 44px; min-height: 
 .clearance-correction { margin-block: 12px; }
 .clearance-correction summary { cursor: pointer; font-weight: 600; }
 .clearance-correction form { margin-top: 12px; }
-.visit-document img { display: block; max-width: 100%; max-height: 420px; margin-top: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); object-fit: contain; }
+.visit-document .table-wrap { margin-top: 12px; border: 1px solid var(--line); border-radius: 20px; }
+.visit-document .tbl { min-width: 520px; }
+.visit-document .tbl th:nth-child(2) { width: 56%; }
+.visit-document .tbl td { border-bottom: 0; }
+.visit-document .tbl th + th, .visit-document .tbl td + td { border-left: 1px solid var(--line); }
+.visit-document img { display: block; max-width: 100%; max-height: 420px; margin-inline: auto; border-radius: 12px; background: var(--paper); object-fit: contain; }
 .dashboard-metrics:has(> :nth-child(3):last-child) { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }

@@ -68,6 +68,8 @@
 .pet-details-form textarea, .site-office .visit-form textarea { min-height: 88px; }
 .pet-form-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 24px; }
 .pet-form-actions .check-row { margin: 0; }
+.pet-details-form .visit-form-footer { margin-top: 20px; align-items: center; }
+.pet-details-form .visit-form-footer .check-row { margin: 0; }
 .site-office .visit-form > .grid, .site-office .visit-summary-grid { margin-bottom: 20px; }
 .site-office .visit-form .record-fields { margin: 20px 0; }
 .site-office .visit-followup-grid { margin-top: 20px; }
@@ -88,15 +90,15 @@
 }
 
 @media (min-width: 900px) {
-  .site.is-workspace { padding-left: 232px; }
-  .workspace-sidebar { display: flex; position: fixed; inset: 0 auto 0 0; z-index: 40; width: 232px; flex-direction: column; gap: 24px; padding: 28px 16px 24px; overflow-y: auto; background: var(--hero); color: var(--hero-ink); }
-  .workspace-sidebar > .brand { padding: 0 8px 16px; gap: 10px; }
+  .site.is-workspace { padding-left: 248px; }
+  .workspace-sidebar { display: flex; position: fixed; inset: 16px auto 16px 16px; z-index: 40; width: 232px; flex-direction: column; gap: 20px; padding: 24px 16px 20px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(214, 231, 210, .4) transparent; border-radius: 24px; background: var(--hero); color: var(--hero-ink); }
+  .workspace-sidebar > .brand { padding: 0 8px 8px; gap: 10px; }
   .workspace-sidebar .brand-mark { width: 36px; height: 36px; flex-basis: 36px; }
   .workspace-sidebar .brand-mark svg { width: 25px; height: 25px; }
   .workspace-sidebar .wordmark { font-size: 26px; }
   .workspace-sidebar .brand-subtitle { margin-top: 7px; font-size: 13px; }
-  .workspace-nav { display: grid; gap: 6px; }
-  .workspace-nav a { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 10px 12px; border-radius: 10px; color: var(--hero-ink); font-size: 15px; line-height: 1.3; font-weight: 500; }
+  .workspace-nav { display: grid; gap: 2px; }
+  .workspace-nav a { display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 8px 12px; border-radius: 10px; color: var(--hero-ink); font-size: 15px; line-height: 1.3; font-weight: 500; }
   .workspace-nav a:hover { text-decoration: none; background: rgba(183, 255, 114, .12); }
   .workspace-nav a.active { background: var(--lime); color: var(--dark-ink); font-weight: 700; }
   .workspace-nav svg { width: 20px; height: 20px; flex: 0 0 20px; }
