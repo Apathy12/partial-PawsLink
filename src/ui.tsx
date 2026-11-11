@@ -297,6 +297,7 @@ export function CivicFrame({ children, nav = [], menuItems, serviceName = 'Pet r
           <div><strong>{workspaceIdentity.who}</strong><span>{workspaceIdentity.roleLabel}</span></div>
           {workspaceIdentity.extra ? <div className="workspace-description">{workspaceIdentity.extra}</div> : null}
         </div> : null}
+        <p className="workspace-credit">© {new Date().getFullYear()} City of Butuan · CAVD</p>
       </aside> : null}
       <div className="site-header">
         <header className="topbar">
