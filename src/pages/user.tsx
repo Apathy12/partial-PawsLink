@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { EducationHome } from './education'
+import { useInbox } from './inbox'
 import { explain, supabase } from '../lib/supabase'
 import { useSavedListings } from '../lib/saved-listings'
 import { useListingApplications } from '../lib/listing-applications'
@@ -17,13 +18,16 @@ import {
   listingPill, originBadge, registryPill, useToasts, ToastHost
 } from '../ui'
 
-export function UserShell({ children, showIdentity = false }: { children: ReactNode; showIdentity?: boolean }) {
+export function UserShell({ children, showIdentity = false, inboxCount }: { children: ReactNode; showIdentity?: boolean; inboxCount?: number }) {
   const { profile, signOut } = useAuth()
+  // The inbox page passes its own count, so the bell follows "Mark all as read".
+  const ownCount = useInbox('user', inboxCount === undefined).newCount
   return (
     <Shell
       who={profile?.name || ''}
       roleLabel="Owner / adopter"
       showIdentity={showIdentity}
+      inboxCount={inboxCount ?? ownCount}
       onSignOut={() => void signOut()}
       extra={<span className="sub">Register pets, request listings, and find a pet match. CAVD decides.</span>}
       nav={[
@@ -94,11 +98,15 @@ export function UserPetNew() {
     e.preventDefault()
     if (!profile) return
     const f = new FormData(e.currentTarget)
+    // The browser's required check can be bypassed for files and passes blank spaces.
+    const file = f.get('photo') as File | null
+    if (!file?.size) { bad('Add a photo of your pet.'); return }
+    if (['name', 'breed', 'color', 'markings', 'about'].some(key => !String(f.get(key) || '').trim())) {
+      bad('Fill in every pet detail.'); return
+    }
     setBusy(true)
     try {
-      const file = (f.get('photo') as File | null)
-      let photo_url: string | null = null
-      if (file && file.size) photo_url = await uploadPetPhoto(profile.id, file)
+      const photo_url = await uploadPetPhoto(profile.id, file)
       const { data, error } = await supabase.from('pets').insert({
         owner_id: profile.id,
         created_by: profile.id,
@@ -134,24 +142,25 @@ export function UserPetNew() {
         <p className="sub">The record starts pending and receives a pet code. It is not publicly visible or listed until CAVD approves it.</p>
       </div>
       <form className="card form-panel" onSubmit={onSubmit}>
+        <Notice kind="info">Fill in every pet detail. CAVD reads the complete request before approving it.</Notice>
         <Field label="Name"><input name="name" required /></Field>
         <div className="grid grid-2">
           <Field label="Species">
-            <select name="species"><option value="dog">Dog</option><option value="cat">Cat</option><option value="other">Other</option></select>
+            <select name="species" required defaultValue=""><option value="" disabled>Choose…</option><option value="dog">Dog</option><option value="cat">Cat</option><option value="other">Other</option></select>
           </Field>
           <Field label="Sex">
-            <select name="sex"><option value="male">Male</option><option value="female">Female</option></select>
+            <select name="sex" required defaultValue=""><option value="" disabled>Choose…</option><option value="male">Male</option><option value="female">Female</option></select>
           </Field>
-          <Field label="Breed"><input name="breed" placeholder="Aspin (mixed)" /></Field>
+          <Field label="Breed"><input name="breed" required placeholder="Aspin (mixed)" /></Field>
           <Field label="Size">
-            <select name="size"><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select>
+            <select name="size" required defaultValue=""><option value="" disabled>Choose…</option><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select>
           </Field>
           <Field label="Birth date"><input type="date" name="birth_date" required /></Field>
-          <Field label="Colour"><input name="color" /></Field>
+          <Field label="Colour"><input name="color" required /></Field>
         </div>
-        <Field label="Markings"><input name="markings" /></Field>
-        <Field label="Pet description" hint="If you request an adoption listing, this description becomes public. Do not include phone numbers or addresses."><textarea name="about" /></Field>
-        <Field label="Photo"><input type="file" name="photo" accept="image/*" /></Field>
+        <Field label="Markings" hint="Write None if there are no markings."><input name="markings" required /></Field>
+        <Field label="Pet description" hint="If you request an adoption listing, this description becomes public. Do not include phone numbers or addresses."><textarea name="about" required /></Field>
+        <Field label="Photo" hint="A clear photo helps CAVD identify the pet."><input type="file" name="photo" accept="image/*" required /></Field>
         <label className="field" style={{ fontWeight: 400 }}>
           <input type="checkbox" name="sterilized" /> Already spayed or neutered
         </label>

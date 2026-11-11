@@ -6,6 +6,7 @@ import { uploadPetPhoto } from '../lib/photos'
 import { VisitForm, VisitHistory } from '../lib/visits'
 import { MatchTraitsEditor } from './match-traits-editor'
 import { PetEligibilityEditor } from './adoption-rules'
+import { useInbox } from './inbox'
 import { useEligibilityReport } from '../lib/use-eligibility-report'
 import { stageLabel } from '../lib/adoption-application'
 import { fmtDate, petLine, sourceLabel } from '../lib/format'
@@ -18,15 +19,20 @@ import {
 
 type Counts = { regs: number; lists: number; apps: number; verifications: number }
 
-export function OfficeShell({ children, counts }: { children: ReactNode; counts?: Counts }) {
+export function OfficeShell({ children, counts, inboxCount }: { children: ReactNode; counts?: Counts; inboxCount?: number }) {
   const { profile, signOut } = useAuth()
+  // The inbox page passes its own count, so the bell follows "Mark all as read".
+  const ownCount = useInbox('office', inboxCount === undefined).newCount
+  const unread = inboxCount ?? ownCount
   return (
     <Shell
       who={profile?.name || ''}
       roleLabel="CAVD staff"
       onSignOut={() => void signOut()}
+      inboxCount={unread}
       nav={[
         { to: '/office', label: 'Dashboard', end: true },
+        { to: '/office/inbox', label: 'Inbox', count: unread },
         { to: '/office/registrations', label: 'Registrations', count: counts?.regs },
         { to: '/office/listings', label: 'Listings', count: counts?.lists },
         { to: '/office/adoption-rules', label: 'Adoption rules' },
@@ -772,6 +778,7 @@ export function OfficePet() {
   }
 
   if (!pet) return <OfficeShell counts={counts}><Empty>No such record.</Empty></OfficeShell>
+  const approved = pet.registry_status === 'approved'
 
   return (
     <OfficeShell counts={counts}>
@@ -795,9 +802,13 @@ export function OfficePet() {
         <div>
           <div className="card">
             <h2>Visit history</h2>
-            <VisitHistory visits={visits} petName={pet.name} canCorrect={v => void correct(v)} onCorrectClearance={correctClearance} />
+            <VisitHistory visits={visits} petName={pet.name} canCorrect={v => void correct(v)} onCorrectClearance={approved ? correctClearance : undefined} />
           </div>
-          {profile ? <VisitForm pet={pet} profile={profile} onSaved={load} /> : null}
+          {!approved ? <div className="card">
+            <h2>Veterinary records are locked</h2>
+            <p className="sub">This registration is {pet.registry_status === 'rejected' ? 'rejected' : 'still pending'}. Visits, vaccinations and adoption clearance can be recorded only after CAVD approves the registration.</p>
+            <Link className="btn btn-outline" to="/office/registrations">Open registration queue</Link>
+          </div> : profile ? <VisitForm pet={pet} profile={profile} onSaved={load} /> : null}
           {corrections.length ? <div className="card">
             <h2>Visit correction audit</h2>
             <ul className="timeline">{corrections.map(c => <li key={c.id}>
@@ -820,8 +831,10 @@ export function OfficePet() {
           </div>
         </div>
         <div>
-          <PetEligibilityEditor pet={pet} latestClearance={visits[0]?.clearance_status ?? null} onSaved={message => { ok(message); load() }} />
-          <MatchTraitsEditor petId={pet.id} onSaved={ok} />
+          {approved ? <>
+            <PetEligibilityEditor pet={pet} latestClearance={visits[0]?.clearance_status ?? null} onSaved={message => { ok(message); load() }} />
+            <MatchTraitsEditor petId={pet.id} onSaved={ok} />
+          </> : null}
           <div className="card">
             <h2>Pet record</h2>
             <dl className="kv">

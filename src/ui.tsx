@@ -218,8 +218,10 @@ export function useToasts() {
 
 type NavItem = { to: string; label: string; end?: boolean; count?: number }
 
+const BELL = <><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.7 21a2 2 0 0 1-3.4 0" /></>
+
 function WorkspaceNavIcon({ to }: { to: string }) {
-  const icon = to.endsWith('/registrations') || to.endsWith('/applications') ? <><rect x="6" y="4" width="12" height="17" rx="2" /><path d="M9 9h6m-6 4h6m-6 4h3M9 4V2h6v2" /></>
+  const icon = to.endsWith('/inbox') ? BELL : to.endsWith('/registrations') || to.endsWith('/applications') ? <><rect x="6" y="4" width="12" height="17" rx="2" /><path d="M9 9h6m-6 4h6m-6 4h3M9 4V2h6v2" /></>
     : to.endsWith('/listings') ? <path d="M12 20s-8-4.7-8-10a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 10c0 5.3-8 10-8 10Z" />
       : to.endsWith('/adoption-rules') ? <><path d="M12 3 4.5 6v6c0 4.5 7.5 9 7.5 9s7.5-4.5 7.5-9V6L12 3Z" /><path d="m8.5 12 2.5 2.5 4.5-5" /></>
         : to.endsWith('/accounts') ? <><circle cx="9" cy="8" r="3" /><path d="M3 21v-2a6 6 0 0 1 12 0v2M16 5a3 3 0 0 1 0 6m2 4a6 6 0 0 1 3 5" /></>
@@ -261,7 +263,7 @@ function TabBar({ tabs }: { tabs: TabItem[] }) {
   )
 }
 
-export function CivicFrame({ children, nav = [], menuItems, serviceName = 'Pet registry & adoption', action, variant = 'public', tabs, workspaceIdentity }: {
+export function CivicFrame({ children, nav = [], menuItems, serviceName = 'Pet registry & adoption', action, variant = 'public', tabs, workspaceIdentity, inboxCount = 0 }: {
   children: ReactNode
   nav?: NavItem[]
   menuItems?: NavItem[]
@@ -270,6 +272,7 @@ export function CivicFrame({ children, nav = [], menuItems, serviceName = 'Pet r
   variant?: string
   tabs?: TabItem[]
   workspaceIdentity?: { who: string; roleLabel: string; extra?: ReactNode }
+  inboxCount?: number
 }) {
   const workspace = variant === 'office'
   const [theme, setTheme] = useState<'light' | 'dark'>(() => document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light')
@@ -309,6 +312,11 @@ export function CivicFrame({ children, nav = [], menuItems, serviceName = 'Pet r
                 {theme === 'dark' ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg> : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M20.5 15.2A8.5 8.5 0 0 1 8.8 3.5 8.5 8.5 0 1 0 20.5 15.2Z"/></svg>}
                 <span>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>
               </button>
+              {/* The bell shares the theme switch's button style. */}
+              {variant === 'user' || workspace ? <NavLink className="theme-toggle inbox-bell" to={workspace ? '/office/inbox' : '/app/inbox'} title="Inbox" aria-label={inboxCount ? `Inbox, ${inboxCount} new` : 'Inbox'}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{BELL}</svg>
+                {inboxCount ? <b>{inboxCount > 99 ? '99+' : inboxCount}</b> : null}
+              </NavLink> : null}
               {action}
               {menuItems ? <details className="public-menu">
                 <summary aria-label="Menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></summary>
@@ -350,7 +358,7 @@ export function CivicFrame({ children, nav = [], menuItems, serviceName = 'Pet r
 }
 
 export function Shell({
-  who, roleLabel, nav, children, onSignOut, extra, showIdentity = true, tabs
+  who, roleLabel, nav, children, onSignOut, extra, showIdentity = true, tabs, inboxCount
 }: {
   who: string
   roleLabel: string
@@ -360,6 +368,7 @@ export function Shell({
   extra?: ReactNode
   showIdentity?: boolean
   tabs?: TabItem[]
+  inboxCount?: number
 }) {
   const office = nav.some(item => item.to === '/office')
   return (
@@ -368,6 +377,7 @@ export function Shell({
       serviceName={office ? 'CAVD office' : 'My registry'}
       nav={nav}
       tabs={tabs}
+      inboxCount={inboxCount}
       workspaceIdentity={{ who, roleLabel, extra }}
       action={<button className="header-action" type="button" onClick={onSignOut}>Log out</button>}
     >

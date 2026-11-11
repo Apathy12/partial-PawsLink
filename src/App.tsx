@@ -20,6 +20,7 @@ import { OfficeMfaPage } from './pages/office-mfa'
 import { OfficeAdoptionRules } from './pages/adoption-rules'
 import { ExplorePets } from './pages/explore'
 import { OfficeVeterinary } from './pages/office-veterinary'
+import { OfficeInbox, UserInbox } from './pages/inbox'
 
 export default function App() {
   return (
@@ -47,8 +48,10 @@ export default function App() {
           <Route path="/app/applications" element={<RequireAuth roles={['user']}><UserApplications /></RequireAuth>} />
           <Route path="/app/applications/:id" element={<RequireAuth roles={['user']}><UserApplicationDetail /></RequireAuth>} />
           <Route path="/app/profile" element={<RequireAuth roles={['user']} allowUnverified><UserProfile /></RequireAuth>} />
+          <Route path="/app/inbox" element={<RequireAuth roles={['user']}><UserInbox /></RequireAuth>} />
 
           <Route path="/office" element={<RequireAuth roles={['cavd']}><OfficeHome /></RequireAuth>} />
+          <Route path="/office/inbox" element={<RequireAuth roles={['cavd']}><OfficeInbox /></RequireAuth>} />
           <Route path="/office/adoption-rules" element={<RequireAuth roles={['cavd']}><OfficeAdoptionRules /></RequireAuth>} />
           <Route path="/office/mfa" element={<RequireAuth roles={['cavd']} allowMfaSetup><OfficeMfaPage /></RequireAuth>} />
           <Route path="/office/registrations" element={<RequireAuth roles={['cavd']}><OfficeRegistrations /></RequireAuth>} />
