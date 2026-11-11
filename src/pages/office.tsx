@@ -7,17 +7,36 @@ import { VisitForm, VisitHistory } from '../lib/visits'
 import { MatchTraitsEditor } from './match-traits-editor'
 import { PetEligibilityEditor } from './adoption-rules'
 import { useInbox } from './inbox'
+import { detailsRequested, missingPetDetails, ownerAnswered, requestPetDetails } from '../lib/pet-registry'
 import { useEligibilityReport } from '../lib/use-eligibility-report'
 import { stageLabel } from '../lib/adoption-application'
 import { fmtDate, petLine, sourceLabel } from '../lib/format'
 import { fetchRegistryPage, REGISTRY_PAGE_SIZE } from '../lib/pet-registry'
 import type { AdoptionRecord, Application, Listing, Pet, Profile, Visit, VisitCorrection } from '../lib/types'
 import {
-  DashboardWelcome, Empty, Field, Notice, Pagination, PetCode, Photo, Shell, ToastHost, appPill, discoveryPill,
+  DashboardWelcome, Empty, Field, Notice, Pagination, PetCode, Photo, Pill, Shell, ToastHost, appPill, discoveryPill,
   listingPill, registryPill, sourcePill, useToasts
 } from '../ui'
 
 type Counts = { regs: number; lists: number; apps: number; verifications: number }
+
+// CAVD's message stays on the pending record; the owner sees it and corrects the details.
+async function askForDetails(pet: Pet, ok: (text: string) => void, bad: (text: string) => void, reload: () => void) {
+  const missing = missingPetDetails(pet)
+  const note = window.prompt('What should the owner complete? They will see this message.',
+    missing.length ? `Please complete: ${missing.join(', ')}.` : '')?.trim()
+  if (!note) return
+  const { error } = await requestPetDetails(pet.id, note)
+  if (error) bad(explain(error)); else { ok(`The owner of ${pet.name} was asked to complete the details.`); reload() }
+}
+
+function RegistrationStatus({ pet }: { pet: Pet }) {
+  if (!detailsRequested(pet)) return registryPill(pet.registry_status)
+  return <>
+    <Pill kind="wait">{ownerAnswered(pet) ? 'Owner updated details' : 'Waiting for owner'}</Pill>
+    <div className="sub">Asked: {pet.registry_note}</div>
+  </>
+}
 
 export function OfficeShell({ children, counts, inboxCount }: { children: ReactNode; counts?: Counts; inboxCount?: number }) {
   const { profile, signOut } = useAuth()
@@ -207,9 +226,10 @@ export function OfficeHome() {
             <td><div className="table-pet"><div className="avatar"><Photo url={p.photo_url} name={p.name} /></div>
               <div><Link className="pet-name" to={'/office/pets/' + p.id}>{p.name}</Link><div className="sub">{petLine(p)}</div><PetCode code={p.qr_slug} compact /></div>
             </div></td>
-            <td>{registryPill(p.registry_status)}</td>
+            <td><RegistrationStatus pet={p} /></td>
             <td className="btn-row">
               <button className="btn btn-sm btn-outline" type="button" onClick={() => void approveReg(p)}>Verify</button>
+              <button className="btn btn-sm btn-outline" type="button" onClick={() => void askForDetails(p, ok, bad, () => void load())}>Ask for details</button>
               <button className="btn btn-sm btn-danger" type="button" onClick={() => void rejectReg(p)}>Reject</button>
             </td>
           </tr>
@@ -280,15 +300,17 @@ export function OfficeRegistrations() {
             </div></td>
             <td className="table-notes">
               <p>Colour: {p.color || '—'}</p><p>Markings: {p.markings || '—'}</p><p>{p.about || 'No notes.'}</p>
+              {missingPetDetails(p).length ? <p><strong>Missing: {missingPetDetails(p).join(', ')}</strong></p> : null}
             </td>
-            <td>{registryPill(p.registry_status)}</td>
+            <td><RegistrationStatus pet={p} /></td>
             <td className="btn-row">
               <button className="btn btn-sm btn-outline" type="button" onClick={async () => {
                 const { error } = await supabase.from('pets').update({
-                  registry_status: 'approved', decided_at: new Date().toISOString()
+                  registry_status: 'approved', decided_at: new Date().toISOString(), registry_note: null
                 }).eq('id', p.id)
                 if (error) bad(explain(error)); else { ok(p.name + ' verified.'); load() }
               }}>Verify record</button>
+              <button className="btn btn-sm btn-outline" type="button" onClick={() => void askForDetails(p, ok, bad, load)}>Ask for details</button>
               <button className="btn btn-sm btn-danger" type="button" onClick={async () => {
                 const reason = window.prompt('Reason') || ''
                 if (!reason.trim()) return

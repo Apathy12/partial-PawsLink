@@ -24,3 +24,26 @@ export function fetchRegistryPage({ page, search, status, source }: {
   const start = page * REGISTRY_PAGE_SIZE
   return request.range(start, start + REGISTRY_PAGE_SIZE - 1)
 }
+
+type Registration = Pick<Pet, 'registry_status' | 'registry_note' | 'decided_at' | 'updated_at'>
+
+/** CAVD asked the owner to complete a pending registration: it stays pending and carries CAVD's note. */
+export function detailsRequested(pet: Registration) {
+  return pet.registry_status === 'pending' && Boolean(pet.registry_note)
+}
+
+/** The owner saved the record after that request, so it is ready for CAVD to check again. */
+export function ownerAnswered(pet: Registration) {
+  return detailsRequested(pet) && Boolean(pet.decided_at) && Date.parse(pet.updated_at) > Date.parse(pet.decided_at!)
+}
+
+/** Details an owner registration should carry before CAVD approves it. */
+export function missingPetDetails(pet: Pick<Pet, 'breed' | 'color' | 'markings' | 'about' | 'photo_url'>) {
+  return ([['breed', pet.breed], ['colour', pet.color], ['markings', pet.markings], ['description', pet.about], ['photo', pet.photo_url]] as const)
+    .filter(([, value]) => !value?.trim()).map(([label]) => label)
+}
+
+/** Postgres reads 'now' as the statement's time, the same value the trigger stamps on updated_at. */
+export function requestPetDetails(petId: string, note: string) {
+  return supabase.from('pets').update({ registry_note: note, decided_at: 'now' }).eq('id', petId)
+}

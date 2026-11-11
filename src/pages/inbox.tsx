@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { explain, supabase } from '../lib/supabase'
 import { fmtDate, sexLabel, sizeLabel, speciesLabel } from '../lib/format'
+import { detailsRequested, ownerAnswered } from '../lib/pet-registry'
 import type { Application, ApplicationEvent, Listing, Pet, VerificationRequest, Visit } from '../lib/types'
 import { Empty, Notice, Pill } from '../ui'
 import { OfficeShell, useCounts } from './office'
@@ -66,6 +67,11 @@ async function userItems(me: string): Promise<InboxItem[]> {
   ])
   const petName = (id: string) => pets.find(pet => pet.id === id)?.name || 'your pet'
   return [
+    ...pets.filter(detailsRequested).map((pet): InboxItem => ({
+      id: 'ask' + pet.id, kind: 'Registration', date: pet.decided_at || pet.updated_at,
+      title: `CAVD needs more details for ${pet.name}`, text: brief(pet.registry_note),
+      to: '/app/pets/' + pet.id, action: 'Complete details'
+    })),
     ...pets.filter(pet => pet.registry_status !== 'pending').map((pet): InboxItem => ({
       id: 'pet' + pet.id, kind: 'Registration', date: pet.decided_at || pet.created_at,
       title: `${pet.name}’s registration was ${pet.registry_status === 'approved' ? 'approved' : 'not approved'}`,
@@ -126,11 +132,15 @@ async function officeItems(): Promise<InboxItem[]> {
   const petName = (id: string) => named.find(pet => pet.id === id)?.name || 'A pet'
   const vaccine = (visit: VisitRow) => (visit.vaccine_name || '').trim().toLowerCase()
   return [
-    ...pets.map((pet): InboxItem => ({
+    // A registration waiting on its owner returns here once the owner has updated it.
+    ...pets.filter(pet => !detailsRequested(pet) || ownerAnswered(pet)).map((pet): InboxItem => ownerAnswered(pet) ? {
+      id: 'pet' + pet.id, kind: 'Registration', date: pet.updated_at, title: 'Owner updated pet details',
+      text: `${who(pet.owner_id)} updated ${pet.name} after your request.`, to: '/office/registrations', action: 'Review registration'
+    } : {
       id: 'pet' + pet.id, kind: 'Registration', date: pet.created_at, title: 'New pet registration',
       text: `${who(pet.owner_id)} registered ${pet.name} · ${speciesLabel(pet.species)} · ${pet.breed || 'Unknown breed'} · ${sexLabel(pet.sex)} · ${sizeLabel(pet.size)}`,
       to: '/office/registrations', action: 'Review registration'
-    })),
+    }),
     ...listings.map((listing): InboxItem => ({
       id: 'listing' + listing.id, kind: 'Listing', date: listing.created_at, title: 'Listing request',
       text: `${who(listing.listed_by)} asked to list ${petName(listing.pet_id)} for adoption.`,

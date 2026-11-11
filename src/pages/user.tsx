@@ -7,6 +7,7 @@ import { explain, supabase } from '../lib/supabase'
 import { useSavedListings } from '../lib/saved-listings'
 import { useListingApplications } from '../lib/listing-applications'
 import { useMyPetIds } from '../lib/my-pets'
+import { detailsRequested, ownerAnswered } from '../lib/pet-registry'
 import { eligibilityReasons, type AdoptionChecks } from '../lib/eligibility'
 import { applicationActionLabel, applicationPath, stageLabel } from '../lib/adoption-application'
 import { uploadPetPhoto } from '../lib/photos'
@@ -77,7 +78,7 @@ export function UserPets() {
                 <h2 className="pet-name"><Link to={'/app/pets/' + p.id}>{p.name}</Link></h2>
                 <div className="pet-meta">{petLine(p)}</div>
                 <PetCode code={p.qr_slug} compact />
-                <div>{registryPill(p.registry_status)}</div>
+                <div className="btn-row">{registryPill(p.registry_status)}{detailsRequested(p) ? <Pill kind="wait">CAVD needs details</Pill> : null}</div>
                 <Link className="record-link" to={'/app/pets/' + p.id}>Open record</Link>
               </div>
             </article>
@@ -86,6 +87,44 @@ export function UserPets() {
       )}
     </UserShell>
   )
+}
+
+// The same details serve a new registration and an owner's correction of a pending one.
+function PetFields({ pet }: { pet?: Pet }) {
+  return <>
+    <Field label="Name"><input name="name" required defaultValue={pet?.name} /></Field>
+    <div className="grid grid-2">
+      <Field label="Species">
+        <select name="species" required defaultValue={pet?.species ?? ''}><option value="" disabled>Choose…</option><option value="dog">Dog</option><option value="cat">Cat</option><option value="other">Other</option></select>
+      </Field>
+      <Field label="Sex">
+        <select name="sex" required defaultValue={pet?.sex ?? ''}><option value="" disabled>Choose…</option><option value="male">Male</option><option value="female">Female</option></select>
+      </Field>
+      <Field label="Breed"><input name="breed" required placeholder="Aspin (mixed)" defaultValue={pet?.breed ?? ''} /></Field>
+      <Field label="Size">
+        <select name="size" required defaultValue={pet?.size ?? ''}><option value="" disabled>Choose…</option><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select>
+      </Field>
+      <Field label="Birth date"><input type="date" name="birth_date" required defaultValue={pet?.birth_date} /></Field>
+      <Field label="Colour"><input name="color" required defaultValue={pet?.color ?? ''} /></Field>
+    </div>
+    <Field label="Markings" hint="Write None if there are no markings."><input name="markings" required defaultValue={pet?.markings ?? ''} /></Field>
+    <Field label="Pet description" hint="If you request an adoption listing, this description becomes public. Do not include phone numbers or addresses."><textarea name="about" required defaultValue={pet?.about ?? ''} /></Field>
+    <Field label={pet?.photo_url ? 'Replace photo' : 'Photo'} hint="A clear photo helps CAVD identify the pet."><input type="file" name="photo" accept="image/*" required={!pet?.photo_url} /></Field>
+    <label className="field" style={{ fontWeight: 400 }}>
+      <input type="checkbox" name="sterilized" defaultChecked={pet?.sterilized} /> Already spayed or neutered
+    </label>
+  </>
+}
+
+// The browser's required check passes blank spaces, so the text details are checked again here.
+function readPetFields(f: FormData) {
+  const text = (key: string) => String(f.get(key) || '').trim()
+  if (['name', 'breed', 'color', 'markings', 'about'].some(key => !text(key))) return null
+  return {
+    name: text('name'), species: f.get('species'), breed: text('breed'), sex: f.get('sex'), size: f.get('size'),
+    birth_date: f.get('birth_date'), color: text('color'), markings: text('markings'), about: text('about'),
+    sterilized: f.get('sterilized') === 'on'
+  }
 }
 
 export function UserPetNew() {
@@ -98,12 +137,11 @@ export function UserPetNew() {
     e.preventDefault()
     if (!profile) return
     const f = new FormData(e.currentTarget)
-    // The browser's required check can be bypassed for files and passes blank spaces.
+    // The browser's required check can be bypassed for files.
     const file = f.get('photo') as File | null
     if (!file?.size) { bad('Add a photo of your pet.'); return }
-    if (['name', 'breed', 'color', 'markings', 'about'].some(key => !String(f.get(key) || '').trim())) {
-      bad('Fill in every pet detail.'); return
-    }
+    const details = readPetFields(f)
+    if (!details) { bad('Fill in every pet detail.'); return }
     setBusy(true)
     try {
       const photo_url = await uploadPetPhoto(profile.id, file)
@@ -112,16 +150,7 @@ export function UserPetNew() {
         created_by: profile.id,
         source: 'owner',
         registry_status: 'pending',
-        name: String(f.get('name') || '').trim(),
-        species: f.get('species'),
-        breed: String(f.get('breed') || '').trim() || null,
-        sex: f.get('sex'),
-        size: f.get('size'),
-        birth_date: f.get('birth_date'),
-        color: String(f.get('color') || '').trim() || null,
-        markings: String(f.get('markings') || '').trim() || null,
-        about: String(f.get('about') || '').trim() || null,
-        sterilized: f.get('sterilized') === 'on',
+        ...details,
         photo_url
       }).select('id').single()
       if (error) throw error
@@ -143,27 +172,7 @@ export function UserPetNew() {
       </div>
       <form className="card form-panel" onSubmit={onSubmit}>
         <Notice kind="info">Fill in every pet detail. CAVD reads the complete request before approving it.</Notice>
-        <Field label="Name"><input name="name" required /></Field>
-        <div className="grid grid-2">
-          <Field label="Species">
-            <select name="species" required defaultValue=""><option value="" disabled>Choose…</option><option value="dog">Dog</option><option value="cat">Cat</option><option value="other">Other</option></select>
-          </Field>
-          <Field label="Sex">
-            <select name="sex" required defaultValue=""><option value="" disabled>Choose…</option><option value="male">Male</option><option value="female">Female</option></select>
-          </Field>
-          <Field label="Breed"><input name="breed" required placeholder="Aspin (mixed)" /></Field>
-          <Field label="Size">
-            <select name="size" required defaultValue=""><option value="" disabled>Choose…</option><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select>
-          </Field>
-          <Field label="Birth date"><input type="date" name="birth_date" required /></Field>
-          <Field label="Colour"><input name="color" required /></Field>
-        </div>
-        <Field label="Markings" hint="Write None if there are no markings."><input name="markings" required /></Field>
-        <Field label="Pet description" hint="If you request an adoption listing, this description becomes public. Do not include phone numbers or addresses."><textarea name="about" required /></Field>
-        <Field label="Photo" hint="A clear photo helps CAVD identify the pet."><input type="file" name="photo" accept="image/*" required /></Field>
-        <label className="field" style={{ fontWeight: 400 }}>
-          <input type="checkbox" name="sterilized" /> Already spayed or neutered
-        </label>
+        <PetFields />
         <button className="btn" type="submit" disabled={busy}>{busy ? 'Submitting…' : 'Submit for CAVD verification'}</button>
       </form>
     </UserShell>
@@ -210,9 +219,31 @@ export function UserPetDetail() {
     else { ok('Request sent. Hidden from adopters until CAVD approves it.'); load() }
   }
 
+  async function saveDetails(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    if (!pet || !profile) return
+    const f = new FormData(e.currentTarget)
+    const file = f.get('photo') as File | null
+    const details = readPetFields(f)
+    if (!details || !(pet.photo_url || file?.size)) { bad('Fill in every pet detail and add a photo.'); return }
+    setBusy(true)
+    try {
+      const photo_url = file?.size ? await uploadPetPhoto(profile.id, file) : pet.photo_url
+      const { error } = await supabase.from('pets').update({ ...details, photo_url }).eq('id', pet.id)
+      if (error) throw error
+      ok('Details saved. CAVD will review the registration again.')
+      load()
+    } catch (err) {
+      bad(explain(err as { message?: string }))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   if (!pet) {
     return <UserShell><Empty>No pet on this account matches that link.</Empty></UserShell>
   }
+  const requested = detailsRequested(pet)
 
   return (
     <UserShell>
@@ -231,8 +262,17 @@ export function UserPetDetail() {
           </div>
         </div>
         {pet.registry_status === 'rejected' ? <Notice kind="bad">Rejected: {pet.registry_note || 'See CAVD.'}</Notice> : null}
-        {pet.registry_status === 'pending' ? <Notice kind="warn">Waiting for CAVD. The pet code is ready; the public record opens after approval.</Notice> : null}
+        {requested ? <Notice kind="warn"><strong>CAVD asks you to complete this registration:</strong> {pet.registry_note}
+          {ownerAnswered(pet) ? <div>You updated the details on {fmtDate(pet.updated_at)}. CAVD will review them again.</div> : null}</Notice>
+          : pet.registry_status === 'pending' ? <Notice kind="warn">Waiting for CAVD. The pet code is ready; the public record opens after approval.</Notice> : null}
       </div>
+      {pet.registry_status === 'pending' ? <details className="card form-panel pet-correction" open={requested}>
+        <summary>{requested ? 'Complete pet details' : 'Edit pet details'}</summary>
+        <form key={pet.updated_at} onSubmit={saveDetails}>
+          <PetFields pet={pet} />
+          <button className="btn" type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save and send to CAVD'}</button>
+        </form>
+      </details> : null}
 
       <div className="split">
         <div>

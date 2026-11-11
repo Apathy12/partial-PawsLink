@@ -1916,6 +1916,28 @@ async function main() {
     await commitAs(ID.cavd, () => client.query('select public.set_match_weights($1::jsonb)', [JSON.stringify(nineWeights)]));
     await rows('CAVD can save equal nine-criterion weights', ID.cavd,
       'select weights from public.match_settings', r => Object.keys(r[0]?.weights ?? {}).length === 9, []);
+
+    section('Registration detail requests');
+    const draftPet = (await commitAs(ID.owner, () => client.query(`insert into public.pets
+      (owner_id, created_by, source, registry_status, name, species, sex, size, birth_date)
+      values ($1, $1, 'owner', 'pending', 'Dani', 'dog', 'female', 'small', '2024-05-01') returning id`, [ID.owner]))).rows[0].id;
+    // The app sends decided_at as the text 'now', which Postgres reads as the statement's time.
+    const asked = (await commitAs(ID.cavd, () => client.query(`update public.pets set registry_note = $2, decided_at = 'now'
+      where id = $1 returning registry_status, decided_at = updated_at as stamped`, [draftPet, 'Please complete: breed, colour.']))).rows[0];
+    if (asked?.registry_status === 'pending' && asked.stamped === true) ok('CAVD can ask for details and the registration stays pending');
+    else bad('CAVD can ask for details and the registration stays pending', JSON.stringify(asked));
+    await rows('the owner can read CAVD\u2019s request', ID.owner,
+      'select registry_note from public.pets where id = $1', r => r[0]?.registry_note === 'Please complete: breed, colour.', [draftPet]);
+    await denied('the owner cannot clear CAVD\u2019s request', ID.owner,
+      'update public.pets set registry_note = null where id = $1', [draftPet], 'registry decision');
+    await denied('the owner cannot approve their own registration', ID.owner,
+      `update public.pets set registry_status = 'approved' where id = $1`, [draftPet], 'registry status');
+    const answered = (await commitAs(ID.owner, () => client.query(`update public.pets set breed = 'Aspin (mixed)', color = 'Brown'
+      where id = $1 returning updated_at > decided_at as answered, registry_status`, [draftPet]))).rows[0];
+    if (answered?.answered === true && answered.registry_status === 'pending') ok('the owner\u2019s correction is saved and marks the request answered');
+    else bad('the owner\u2019s correction is saved and marks the request answered', JSON.stringify(answered));
+    await noEffect('another user cannot edit that registration', ID.other,
+      `update public.pets set breed = 'Changed' where id = $1`, [draftPet]);
   } finally {
     await client.end().catch(() => {});
     await pg.stop().catch(() => {});
