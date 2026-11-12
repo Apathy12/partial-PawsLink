@@ -93,8 +93,8 @@ async function userItems(me: string): Promise<InboxItem[]> {
     })),
     ...ids.map((request): InboxItem => ({
       id: 'id' + request.id, kind: 'Account', date: request.reviewed_at || request.created_at,
-      title: request.status === 'approved' ? 'Your ID was approved' : 'Your ID needs to be submitted again',
-      text: brief(request.review_note) || (request.status === 'approved' ? 'Your account is verified.' : ''),
+      title: request.status === 'approved' ? 'Your account is active' : 'Your ID needs to be submitted again',
+      text: brief(request.review_note) || (request.status === 'approved' ? 'Your ID was recorded. You can now register pets and apply to adopt.' : ''),
       to: '/app/profile', action: 'My profile'
     })),
     ...visits.map((visit): InboxItem => ({
@@ -158,9 +158,9 @@ async function officeItems(): Promise<InboxItem[]> {
       }
     }),
     ...ids.map((request): InboxItem => ({
-      id: 'id' + request.id, kind: 'Account', date: request.created_at, title: 'New ID to review',
-      text: `${who(request.user_id)} submitted an ID for account verification.`,
-      to: '/office/verifications', action: 'Review ID'
+      id: 'id' + request.id, kind: 'Account', date: request.created_at, title: 'New ID recorded',
+      text: `${who(request.user_id)} uploaded an ID and the account is now active. CAVD can inspect it when reviewing this account's records.`,
+      to: '/office/verifications', action: 'View ID'
     })),
     // A due date stops mattering once the same vaccine has a later record for that pet.
     ...due.filter(visit => !renewed.some(later => later.pet_id === visit.pet_id && vaccine(later) === vaccine(visit))).map((visit): InboxItem => ({
