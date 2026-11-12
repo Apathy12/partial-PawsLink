@@ -160,7 +160,6 @@ export function OfficeHome() {
               <Link to="/office/registrations"><span>Registrations to approve</span><strong>{counts.regs}</strong></Link>
               <Link to="/office/listings"><span>Listings to approve</span><strong>{counts.lists}</strong></Link>
               <Link to="/office/applications"><span>Applications to decide</span><strong>{counts.apps}</strong></Link>
-              <Link to="/office/verifications"><span>IDs to review</span><strong>{counts.verifications}</strong></Link>
             </nav>
           </section>
         </div>
