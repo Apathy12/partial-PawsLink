@@ -655,7 +655,7 @@ export function OfficePet() {
   const [transfers, setTransfers] = useState<AdoptionRecord[]>([])
   const [changes, setChanges] = useState<DetailChange[]>([])
   const [detailsBusy, setDetailsBusy] = useState(false)
-  const who = useNames([pet?.decided_by, ...changes.map(change => change.changed_by)])
+  const who = useNames([pet?.decided_by, pet?.owner_id, ...changes.map(change => change.changed_by)])
 
   const load = useCallback(() => {
     if (!id) return
@@ -819,7 +819,7 @@ export function OfficePet() {
           <div className="card">
             <h2>Pet record</h2>
             <dl className="kv">
-              <dt>Registered owner</dt><dd>{pet.owner_id ? <Link to={`/office/accounts/${pet.owner_id}`}>View owner profile</Link> : 'CAVD shelter'}</dd>
+              <dt>Registered owner</dt><dd>{pet.owner_id ? <>{who(pet.owner_id) ? `${who(pet.owner_id)} · ` : null}<Link to={`/office/accounts/${pet.owner_id}`}>View owner profile</Link></> : 'CAVD shelter'}</dd>
               <dt>Birth date</dt><dd>{fmtDate(pet.birth_date)}</dd>
               <dt>Weight</dt><dd>{pet.weight_kg ? `${pet.weight_kg} kg` : 'Not recorded'}</dd>
               <dt>Color</dt><dd>{pet.color || 'Not recorded'}</dd>
