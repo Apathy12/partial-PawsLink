@@ -52,6 +52,7 @@ export type Pet = {
   rabies_vaccinated: boolean
   rabies_vaccinated_on: string | null
   registry_note: string | null
+  decided_by: string | null
   decided_at: string | null
   created_at: string
   updated_at: string

@@ -8,6 +8,7 @@ import {
 import { fmtDate, petLine } from '../lib/format'
 import { preferenceAnswerRows } from '../lib/matching'
 import { useMyPetIds } from '../lib/my-pets'
+import { useNames } from '../lib/staff'
 import { explain, supabase } from '../lib/supabase'
 import type { AdopterPreferences, Application, ApplicationEvent, Listing, Pet, Profile, PublicListing } from '../lib/types'
 import { ApplicationTracker, Empty, Field, Notice, Photo, discoveryPill } from '../ui'
@@ -40,19 +41,18 @@ function StampedPreferences({ application }: { application: Application }) {
 }
 
 function ApplicationSource({ application }: { application: Application }) {
-  return <p className="sub">Found through: {application.application_source === 'direct' ? 'Direct adoption request' : application.application_source === 'match' ? 'Find My Pet Match' : application.application_source === 'explore' ? 'Explore pets' : 'Earlier application'}
+  return <p className="sub">Found through: {application.application_source === 'direct' ? 'Direct adoption request' : application.application_source === 'match' ? 'Find My Match' : application.application_source === 'explore' ? 'Explore pets' : 'Earlier application'}
     {application.compatibility_score !== null && application.compatibility_score !== undefined
       ? ` · Match score at submission: ${Number(application.compatibility_score).toFixed(1)}%` : ''}.
-    {application.compatibility_weights_version ? ` Weight version ${application.compatibility_weights_version}.` : ''}
-    {application.application_source === 'match' ? ' A match score helps compare pets; CAVD makes the adoption decision.' : ' CAVD makes the adoption decision.'}</p>
+    {application.compatibility_weights_version ? ` Weight version ${application.compatibility_weights_version}.` : ''}</p>
 }
 
-function ApplicationHistory({ events }: { events: ApplicationEvent[] }) {
+function ApplicationHistory({ events, who }: { events: ApplicationEvent[]; who?: (id: string | null) => string | null }) {
   if (!events.length) return null
   return <section className="card"><h2>Application history</h2>
     <ol>{events.map(event => <li key={event.id}>
       <strong>{stageLabel(event.new_stage || 'pending_review', event.new_status)}</strong>
-      <span className="sub"> · {new Date(event.created_at).toLocaleString()}</span>
+      <span className="sub"> · {new Date(event.created_at).toLocaleString()}{who?.(event.actor_id) ? ` · by ${who(event.actor_id)}` : ''}</span>
       {event.remarks ? <p className="application-preline">{event.remarks}</p> : null}
     </li>)}</ol>
   </section>
@@ -178,7 +178,7 @@ export function UserApply() {
 
   return <UserShell>
     <div className="page-head"><Link className="record-link" to={id ? `/app/listings/${id}` : '/app/bridge'}>← Back to pet</Link>
-      <h1>Adoption application</h1><p className="sub">Tell CAVD about your household and your plan for this pet. Matching preferences are separate from this application.</p></div>
+      <h1>Adoption application</h1><p className="sub">Tell CAVD about your household and your plan for this pet.</p></div>
     {loading ? <p role="status">Loading application…</p> : null}
     {error ? <Notice kind="bad">{error}</Notice> : null}
     {!loading && !listing ? <Empty>This pet is no longer open for applications.</Empty> : null}
@@ -186,9 +186,9 @@ export function UserApply() {
       <div><h2>{listing.name}</h2><p className="sub">{petLine(listing)}</p></div></div> : null}
     {ownPet && listing ? <Notice kind="info">This is your pet. You can manage its listing from <Link to={`/app/pets/${listing.pet_id}`}>My pets</Link>.</Notice> : null}
     {!loading && listing && !ownPet && !hasCompletedRequest && !matchReady ?
-      <Notice kind="info">Applications begin in <Link to="/app/match">Find My Pet Match</Link>. Save your preferences and choose this pet from your ranked results.</Notice> : null}
+      <Notice kind="info">Applications begin in <Link to="/app/match">Find My Match</Link>. Save your preferences and choose this pet from your ranked results.</Notice> : null}
     {hasCompletedRequest && existing ? <Notice kind="info">You already applied for this pet. <Link to={`/app/applications/${existing.id}`}>View your application</Link>.</Notice> : null}
-    {existing && !existing.answers_json && existing.status === 'pending' ? <Notice kind="info">Your earlier request has no questionnaire answers. Completing this form adds them to that request.</Notice> : null}
+    {existing && !existing.answers_json && existing.status === 'pending' ? <Notice kind="info">Your earlier request has no application form yet. Completing this one adds it to that request.</Notice> : null}
     {canCompleteRequest ? <form className="application-form" onSubmit={event => void submit(event)}>
       {source === 'match' && preferences ? <section className="card"><h2>Your Find My Match answers</h2>
         <PreferenceAnswers answers={preferences} />
@@ -256,7 +256,7 @@ export function UserApplicationDetail() {
     })
     setBusy(false)
     if (replyError) setError(explain(replyError))
-    else { setApplication(data as Application); setNotice('Your response is available to CAVD.') }
+    else { setApplication(data as Application); setNotice('Response sent to CAVD.') }
   }
 
   return <UserShell>
@@ -306,6 +306,7 @@ export function OfficeApplicationDetail() {
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const navigate = useNavigate()
+  const who = useNames(history.map(event => event.actor_id))
 
   const load = useCallback(async () => {
     if (!id) return
@@ -357,9 +358,8 @@ export function OfficeApplicationDetail() {
       <div className="card"><p><strong>{stageLabel(application.review_stage, application.status)}</strong> · submitted {fmtDate(application.created_at)}</p>
         <ApplicationSource application={application} />
         {adopter ? <p>Applicant: {adopter.name} · {adopter.contact || 'No contact number on profile'}</p> : null}
-        {application.application_source === 'direct' ? <Notice kind="info">Earlier request without an application form. Ask the adopter to complete the form before CAVD approval.</Notice> : null}
         {adopter ? <Link className="record-link" to={`/office/accounts/${adopter.id}`}>View applicant profile and submitted ID</Link> : null}
-        {!application.answers_json && application.message ? <Notice kind="info">Legacy application without questionnaire answers.<p>{application.message}</p></Notice> : null}
+        {!application.answers_json && application.message ? <Notice kind="info">Message sent with the earlier request:<p>{application.message}</p></Notice> : null}
       </div>
       <StampedPreferences application={application} />
       {application.answers_json ? <ApplicationAnswersView answers={application.answers_json} /> : null}
@@ -368,18 +368,18 @@ export function OfficeApplicationDetail() {
         {application.applicant_response ? <><p className="application-preline"><strong>Applicant response:</strong> {application.applicant_response}</p>
           {application.response_date ? <p className="sub">Received {fmtDate(application.response_date)}</p> : null}</> : null}
       </section>
-      <ApplicationHistory events={history} />
+      <ApplicationHistory events={history} who={who} />
       {application.status === 'pending' ? <section className="card"><h2>CAVD review</h2>
         <form onSubmit={event => void review(event)}><Field label="Review stage"><select value={stage} onChange={event => setStage(event.target.value as ReviewStage)}>
           <option value="pending_review">Pending review</option><option value="under_review">Under review</option>
           <option value="for_interview">For interview</option><option value="additional_requirements">Additional requirements needed</option>
-          <option value="rejected">Rejected</option>
+          <option value="rejected">Declined</option>
         </select></Field>
           <Field label="Remarks, requirements, or interview instructions"><textarea value={remarks} maxLength={6000}
             required={['for_interview','additional_requirements','rejected'].includes(stage)} onChange={event => setRemarks(event.target.value)} /></Field>
           <p className="sub">The adopter can read these remarks. Include how to arrange an interview or provide requested documents.</p>
           <button className="btn" type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save review stage'}</button></form>
-        {!application.answers_json ? <p className="sub">The adopter must complete the questionnaire before approval.</p> : null}
+        {!application.answers_json ? <p className="sub">The adopter must complete the application form before approval.</p> : null}
         {pet && !eligibility.report?.find(row => row.pet_id === pet.id)?.eligible ? <Notice kind="warn">{eligibility.error || 'Final approval is paused until the pet passes every adoption eligibility condition.'} <Link to={`/office/pets/${pet.id}#adoption-eligibility`}>Review pet eligibility</Link>.</Notice> : null}
         {application.answers_json && pet && eligibility.report?.find(row => row.pet_id === pet.id)?.eligible && listing?.status === 'approved' ? <div className="application-transfer"><h3>Final approval</h3>
           <p className="sub">Review the applicant’s information, then validate the request with the owner or through a CAVD visit before transferring ownership.</p>

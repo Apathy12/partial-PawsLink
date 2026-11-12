@@ -74,13 +74,13 @@ async function userItems(me: string): Promise<InboxItem[]> {
     })),
     ...pets.filter(pet => pet.registry_status !== 'pending').map((pet): InboxItem => ({
       id: 'pet' + pet.id, kind: 'Registration', date: pet.decided_at || pet.created_at,
-      title: `${pet.name}’s registration was ${pet.registry_status === 'approved' ? 'approved' : 'not approved'}`,
+      title: `${pet.name}’s registration was ${pet.registry_status === 'approved' ? 'approved' : 'rejected'}`,
       text: pet.registry_status === 'approved' ? `${pet.name} is now in the city registry.` : brief(pet.registry_note),
       to: '/app/pets/' + pet.id, action: 'Open pet record'
     })),
     ...listings.map((listing): InboxItem => ({
       id: 'listing' + listing.id, kind: 'Listing', date: listing.decided_at || listing.created_at,
-      title: listing.status === 'approved' ? 'Listing approved' : 'Listing closed',
+      title: listing.status === 'approved' ? 'Listing approved' : listing.status === 'rejected' ? 'Listing rejected' : 'Listing closed',
       text: listing.status === 'approved' ? `${petName(listing.pet_id)} is open for adoption.`
         : brief(listing.decision_note) || `${petName(listing.pet_id)} is not listed for adoption.`,
       to: '/app/pets/' + listing.pet_id, action: 'Open pet record'

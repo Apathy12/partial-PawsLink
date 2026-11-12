@@ -50,4 +50,4 @@ export function eligibilityReasons(pet: Pick<Pet, 'registry_status' | 'sterilize
   return reasons
 }
 
-export const eligibilitySetupMessage = 'Adoption eligibility needs a database update. Ask the administrator to apply the latest migrations.'
+export const eligibilitySetupMessage = 'Adoption eligibility is unavailable. Ask the system administrator to update the database.'

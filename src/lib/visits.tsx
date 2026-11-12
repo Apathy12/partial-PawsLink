@@ -102,7 +102,7 @@ export function VisitForm({ pet, profile, onSaved }: { pet: Pet; profile: Profil
 
   return <form className="form-panel visit-form card" onSubmit={submit}>
     <h2>Add a veterinary visit</h2>
-    <p className="sub">Signed-in CAVD staff record what happened. Saved visits are locked; corrections need an audit note.</p>
+    <p className="sub">Saved visits are locked. Corrections need an audit note.</p>
     {error ? <Notice kind="bad">{error}</Notice> : null}
     {saved ? <Notice kind="ok">Visit added to this pet’s private medical record.</Notice> : null}
     <div className="grid grid-2">
@@ -120,7 +120,7 @@ export function VisitForm({ pet, profile, onSaved }: { pet: Pet; profile: Profil
       <Field label="Reason for visit"><input name="reason" required placeholder="What brought the pet to the clinic?" /></Field>
       <Field label="Visit summary"><textarea name="summary" required placeholder="Short overview for the pet’s timeline" /></Field>
     </div>
-    <Field label="Adoption clearance" hint="Only Cleared pets can appear in the public adoption feed and in Find My Pet Match.">
+    <Field label="Adoption clearance" hint="Only Cleared pets can be listed for adoption and matched.">
       <select name="clearance_status" defaultValue="pending" required>
         {Object.entries(CLEARANCE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
       </select>
@@ -200,6 +200,29 @@ function ClearanceCorrection({ visit, onSave }: {
   </details>
 }
 
+// A summary is corrected in place; the reason goes to the audit trail.
+function SummaryCorrection({ visit, onSave }: {
+  visit: Visit; onSave: (visit: Visit, summary: string, note: string) => Promise<void>
+}) {
+  const [summary, setSummary] = useState(visit.summary)
+  const [note, setNote] = useState('')
+  const [busy, setBusy] = useState(false)
+  async function submit(event: FormEvent) {
+    event.preventDefault()
+    setBusy(true)
+    await onSave(visit, summary.trim(), note.trim())
+    setBusy(false)
+    setNote('')
+  }
+  return <details className="clearance-correction"><summary>Correct summary</summary>
+    <form onSubmit={event => void submit(event)}>
+      <Field label="Corrected summary"><textarea value={summary} onChange={event => setSummary(event.target.value)} required /></Field>
+      <Field label="Audit note"><input value={note} onChange={event => setNote(event.target.value)} required /></Field>
+      <button className="btn btn-sm btn-outline" type="submit" disabled={busy || !summary.trim() || !note.trim()}>{busy ? 'Saving…' : 'Save summary correction'}</button>
+    </form>
+  </details>
+}
+
 // Signed links expire; the image stays on screen once it has loaded.
 function VisitDocument({ visit }: { visit: Visit }) {
   const [url, setUrl] = useState<string | null>(null)
@@ -229,9 +252,9 @@ function VisitDocument({ visit }: { visit: Visit }) {
   </details>
 }
 
-export function VisitHistory({ visits, canCorrect, onCorrectClearance, petName }: {
+export function VisitHistory({ visits, onCorrectSummary, onCorrectClearance, petName }: {
   visits: Visit[]
-  canCorrect?: (visit: Visit) => void
+  onCorrectSummary?: (visit: Visit, summary: string, note: string) => Promise<void>
   onCorrectClearance?: (visit: Visit, status: Visit['clearance_status'], note: string) => Promise<void>
   petName?: string
 }) {
@@ -258,7 +281,7 @@ export function VisitHistory({ visits, canCorrect, onCorrectClearance, petName }
       <thead><tr><th scope="col">Date</th><th scope="col">Visit</th><th scope="col">Document</th><th scope="col">Clinic</th><th scope="col">Summary</th><th scope="col">Clearance</th><th scope="col">Record status</th><th scope="col">Details</th></tr></thead>
       <tbody><tr><td colSpan={8}><Empty>No veterinary visits have been recorded for {petName || 'this pet'} yet.</Empty></td></tr></tbody>
     </table></div>
-    <section className="visit-selected"><h3>Full visit record</h3><p className="sub">Record a real visit to see its complete details here.</p></section>
+    <section className="visit-selected"><h3>Full visit record</h3><p className="sub">Details appear here once CAVD records a visit.</p></section>
   </>
   const hasVaccine = selected.visit_type === 'vaccination' || Boolean(selected.vaccine_name || selected.vaccine_lot || selected.vaccine_next_due_on)
   return <>
@@ -280,8 +303,8 @@ export function VisitHistory({ visits, canCorrect, onCorrectClearance, petName }
 
     <section className="visit-selected" aria-labelledby="selected-visit-heading">
       <div className="visit-selected-head"><div><h3 id="selected-visit-heading">Full visit record</h3><p className="sub">{fmtDate(selected.visit_date)} · {visitKinds[selected.visit_type] || 'Visit'} · {selected.clinic_name}</p></div>
-        {canCorrect ? <button className="btn btn-sm btn-outline" type="button" onClick={() => canCorrect(selected)}>Correct summary with note</button> : null}
       </div>
+      {onCorrectSummary ? <SummaryCorrection key={selected.id + selected.summary} visit={selected} onSave={onCorrectSummary} /> : null}
       {onCorrectClearance ? <ClearanceCorrection key={selected.id + selected.clearance_status} visit={selected} onSave={onCorrectClearance} /> : null}
       {selected.evidence_path ? <VisitDocument key={selected.id} visit={selected} /> : null}
       <div className="table-wrap visit-record-wrap"><table className="tbl visit-record-table">

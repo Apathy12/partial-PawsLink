@@ -1,41 +1,42 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { explain, supabase } from '../lib/supabase'
-import { fmtDate } from '../lib/format'
+import { capitalize, fmtDate } from '../lib/format'
 import type { Profile, VerificationRequest } from '../lib/types'
 import { Empty, Notice, ToastHost, useToasts } from '../ui'
 import { OfficeShell } from './office'
 
 type ReviewRow = VerificationRequest & { person?: Profile }
 
+/** Deletes a rejected ID file, then clears its details from the request. */
+export async function deleteRejectedDocument(row: VerificationRequest) {
+  if (!row.id_path) return
+  const { error: removeError } = await supabase.storage.from('identity-documents').remove([row.id_path])
+  if (removeError) {
+    const { data: latest } = await supabase.from('verification_requests')
+      .select('status,id_path').eq('id', row.id).maybeSingle()
+    if (latest?.status === 'rejected' && latest.id_path === null) return
+    throw removeError
+  }
+  const { data, error: clearError } = await supabase.from('verification_requests')
+    .update({ id_path: null, prc_number: null, clinic_name: null })
+    .eq('id', row.id).eq('status', 'rejected').eq('id_path', row.id_path)
+    .select('id').maybeSingle()
+  if (clearError) throw clearError
+  if (!data) {
+    const { data: latest, error: readError } = await supabase.from('verification_requests')
+      .select('status,id_path').eq('id', row.id).maybeSingle()
+    if (readError || latest?.status !== 'rejected' || latest.id_path !== null) {
+      throw readError || new Error('The rejected ID details could not be cleared.')
+    }
+  }
+}
+
 export function OfficeVerification() {
   const [rows, setRows] = useState<ReviewRow[]>([])
   const [error, setError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
   const { ok, bad, toasts } = useToasts()
-
-  const deleteRejectedDocument = useCallback(async (row: VerificationRequest) => {
-    if (!row.id_path) return
-    const { error: removeError } = await supabase.storage.from('identity-documents').remove([row.id_path])
-    if (removeError) {
-      const { data: latest } = await supabase.from('verification_requests')
-        .select('status,id_path').eq('id', row.id).maybeSingle()
-      if (latest?.status === 'rejected' && latest.id_path === null) return
-      throw removeError
-    }
-    const { data, error: clearError } = await supabase.from('verification_requests')
-      .update({ id_path: null, prc_number: null, clinic_name: null })
-      .eq('id', row.id).eq('status', 'rejected').eq('id_path', row.id_path)
-      .select('id').maybeSingle()
-    if (clearError) throw clearError
-    if (!data) {
-      const { data: latest, error: readError } = await supabase.from('verification_requests')
-        .select('status,id_path').eq('id', row.id).maybeSingle()
-      if (readError || latest?.status !== 'rejected' || latest.id_path !== null) {
-        throw readError || new Error('The rejected ID details could not be cleared.')
-      }
-    }
-  }, [])
 
   const load = useCallback(async () => {
     const { data: requests, error: requestError } = await supabase.from('verification_requests')
@@ -58,7 +59,7 @@ export function OfficeVerification() {
     setRows(list.map(r => ({ ...r, person: peopleById.get(r.user_id) })))
     const failed = cleanup.filter(result => result.status === 'rejected').length
     setError(failed ? `${failed} rejected ID file${failed === 1 ? '' : 's'} could not be deleted. Use Retry delete below.` : null)
-  }, [deleteRejectedDocument])
+  }, [])
 
   useEffect(() => { void load() }, [load])
 
@@ -79,13 +80,12 @@ export function OfficeVerification() {
     <OfficeShell>
       <ToastHost toasts={toasts} />
       <div className="page-head">
-        <div className="step-label">CAVD · Private document review</div>
-        <h1>Identity requests</h1>
-        <p className="sub">Owner and adopter IDs activate their accounts automatically after upload. Open an account to see its private ID.</p>
+        <h1>ID reviews</h1>
+        <p className="sub">Accounts activate automatically after an ID is uploaded. Open an account to view its ID.</p>
       </div>
       {error ? <Notice kind="bad">{error}</Notice> : null}
-      {rows.length ? <div className="card"><h2>Recorded IDs</h2><div className="table-wrap"><table className="tbl"><thead><tr><th>Applicant</th><th>Result</th><th>Recorded</th><th>ID file</th></tr></thead><tbody>
-        {rows.map(row => <tr key={row.id}><td><Link to={`/office/accounts/${row.user_id}`}>{row.person?.name || row.user_id.slice(0, 8)}</Link></td><td>{row.status === 'approved' && !row.reviewed_by ? 'Account activated' : row.status}</td><td>{fmtDate(row.reviewed_at || row.created_at)}</td><td>{row.status === 'rejected' ? row.id_path ? <button className="text-button" type="button" disabled={busyId === row.id} onClick={() => void retryDelete(row)}>{busyId === row.id ? 'Deleting…' : 'Retry delete'}</button> : 'Deleted' : 'Stored privately'}</td></tr>)}
+      {rows.length ? <div className="card"><h2>Recorded IDs</h2><div className="table-wrap"><table className="tbl"><thead><tr><th>Account</th><th>Result</th><th>Recorded</th><th>ID file</th></tr></thead><tbody>
+        {rows.map(row => <tr key={row.id}><td><Link to={`/office/accounts/${row.user_id}`}>{row.person?.name || row.user_id.slice(0, 8)}</Link></td><td>{row.status === 'approved' && !row.reviewed_by ? 'Account activated' : capitalize(row.status)}</td><td>{fmtDate(row.reviewed_at || row.created_at)}</td><td>{row.status === 'rejected' ? row.id_path ? <button className="text-button" type="button" disabled={busyId === row.id} onClick={() => void retryDelete(row)}>{busyId === row.id ? 'Deleting…' : 'Retry delete'}</button> : 'Deleted' : 'Stored privately'}</td></tr>)}
       </tbody></table></div></div> : <Empty>No IDs have been recorded yet.</Empty>}
     </OfficeShell>
   )

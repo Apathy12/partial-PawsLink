@@ -27,7 +27,7 @@ function detailsFailure(error: { message?: string; code?: string }) {
 }
 
 export function UserProfile() {
-  const { profile, session, verification, refresh } = useAuth()
+  const { profile, session, verification, refresh, signOut } = useAuth()
   const [name, setName] = useState(profile?.name || '')
   const [contact, setContact] = useState(profile?.contact || '')
   const [location, setLocation] = useState(profile?.location || '')
@@ -174,7 +174,7 @@ export function UserProfile() {
   }
 
   return <UserShell showIdentity={!onboarding}>
-    <div className="page-head"><div className="step-label">{onboarding ? 'Step 3 of 4 · Make it yours' : 'Account details'}</div><h1>{onboarding ? 'Customize your profile' : 'My profile'}</h1><p className="sub">{onboarding ? 'Add a photo and check your details before continuing. You can update them later in My profile.' : 'Manage your photo, personal details, and login email.'}</p></div>
+    <div className="page-head">{onboarding ? <div className="step-label">Step 3 of 4 · Make it yours</div> : null}<h1>{onboarding ? 'Customize your profile' : 'My profile'}</h1>{onboarding ? <p className="sub">Add a photo and check your details before continuing. You can update them later in My profile.</p> : null}</div>
     {onboarding ? <Notice kind="ok">Registration complete. Save your profile to continue to your PawsLink space.</Notice> : null}
     <div className="profile-layout">
       <form className="card profile-photo-panel" onSubmit={uploadPhoto}>
@@ -184,7 +184,6 @@ export function UserProfile() {
           setPhotoError('Your saved profile photo could not be displayed. Please try uploading it again.')
         }} /> : <PawMark />}</div>
         <h2>Profile photo</h2>
-        <p className="sub">Choose a photo, then upload it here. Saving personal details is a separate action.</p>
         <Field label="Choose a new photo" hint="JPG, PNG, or WebP · up to 3 MB">
           <input type="file" accept="image/jpeg,image/png,image/webp" onChange={choosePhoto} aria-describedby="profile-photo-feedback" disabled={photoBusy} />
         </Field>
@@ -203,7 +202,7 @@ export function UserProfile() {
             <Field label="Birthday"><input type="date" max={new Date().toISOString().slice(0, 10)} value={birthDate} onChange={e => setBirthDate(e.target.value)} /></Field>
             <Field label="Phone number"><input type="tel" value={contact} onChange={e => setContact(e.target.value)} autoComplete="tel" /></Field>
           </div>
-          <Field label="Location" hint="Barangay and city are enough; avoid sharing a full street address if you prefer."><input value={location} onChange={e => setLocation(e.target.value)} autoComplete="address-level2" placeholder="e.g. Ampayon, Butuan City" /></Field>
+          <Field label="Location" hint="Barangay and city are enough."><input value={location} onChange={e => setLocation(e.target.value)} autoComplete="address-level2" placeholder="e.g. Ampayon, Butuan City" /></Field>
           {schemaMissing ? <div role="alert"><Notice kind="bad">Profile updates are unavailable because the account database needs an update. Please contact the PawsLink administrator.</Notice></div> : null}
           <button className="btn" type="submit" disabled={busy || photoBusy}>{busy ? 'Saving…' : onboarding ? 'Save profile and continue' : 'Save profile'}</button>
           <div aria-live="polite">
@@ -221,9 +220,9 @@ export function UserProfile() {
             {emailError ? <div role="alert"><Notice kind="bad">{emailError}</Notice></div> : null}
             {emailMessage ? <Notice kind="ok">{emailMessage}</Notice> : null}
           </div>
-          <p className="hint">For your security, follow any confirmation link sent to your inbox before signing in with the new email.</p>
         </form>
       </div>
     </div>
+    <button className="btn btn-outline profile-logout" type="button" onClick={() => void signOut()}>Log out</button>
   </UserShell>
 }

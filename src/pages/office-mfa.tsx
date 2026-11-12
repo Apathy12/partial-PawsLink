@@ -78,8 +78,8 @@ export function OfficeMfaPage() {
   return <PublicFrame>
     <div className="auth-card card">
       <div className="step-label">CAVD account security</div>
-      <h1>Verify your sign-in</h1>
-      <p className="sub">CAVD records and decisions require a code from an authenticator app on each new sign-in.</p>
+      <h1>Verify your login</h1>
+      <p className="sub">CAVD accounts need a code from an authenticator app each time you log in.</p>
       {error ? <Notice kind="bad">{error}</Notice> : null}
       {loading ? <p className="sub">Checking your security setup…</p> : factorId ?
         <form onSubmit={verify}>
@@ -97,7 +97,7 @@ export function OfficeMfaPage() {
             </form>
           </>}
         </>}
-      <p className="sub" style={{ marginTop: '1rem' }}><button type="button" className="btn btn-outline" onClick={() => void signOut()}>Sign out</button></p>
+      <p className="sub" style={{ marginTop: '1rem' }}><button type="button" className="btn btn-outline" onClick={() => void signOut()}>Log out</button></p>
     </div>
   </PublicFrame>
 }

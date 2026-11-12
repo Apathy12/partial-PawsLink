@@ -1,7 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider, RequireAuth } from './lib/auth'
 import {
-  CheckEmailPage, LandingPage, LoginPage, PublicPetPage, RegisterPage, SetupPage
+  CheckEmailPage, ForgotPasswordPage, LandingPage, LoginPage, PublicPetPage, RegisterPage, ResetPasswordPage, SetupPage
 } from './pages/public'
 import { VerifyIdentityPage } from './pages/verify'
 import { UserProfile } from './pages/profile'
@@ -33,6 +33,8 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/check-email" element={<CheckEmailPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/verify" element={<RequireAuth allowUnverified><VerifyIdentityPage /></RequireAuth>} />
           <Route path="/p/:slug" element={<PublicPetPage />} />
 

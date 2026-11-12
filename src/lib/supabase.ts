@@ -10,7 +10,7 @@ export const supabase: SupabaseClient = createClient(url || 'https://example.sup
 export function explain(err: { message?: string; code?: string } | null | undefined, fallback = 'Something went wrong.') {
   if (!err?.message) return fallback
   const m = err.message
-  if (/row-level security/i.test(m)) return 'The database refused this. Your role is not allowed to do it.'
+  if (/row-level security/i.test(m)) return 'You do not have permission to do this.'
   if (/duplicate key/i.test(m)) return 'That record already exists.'
   if (/only cavd/i.test(m)) return m
   if (/append-only/i.test(m)) return m
@@ -18,7 +18,7 @@ export function explain(err: { message?: string; code?: string } | null | undefi
   if (/Invalid login/i.test(m) || /invalid_credentials/i.test(m)) return 'Email or password is not correct.'
   if (/Email not confirmed/i.test(m)) return 'This email is not confirmed yet.'
   if (/failed to fetch|fetch failed|network request failed|networkerror|load failed/i.test(m)) {
-    return 'The account service could not be reached. Check your connection and try again. If it continues, ask CAVD to check the Supabase project.'
+    return 'PawsLink could not be reached. Check your connection and try again. If it continues, contact CAVD.'
   }
   return m
 }

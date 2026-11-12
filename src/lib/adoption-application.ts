@@ -116,9 +116,9 @@ export type ReviewStage = 'pending_review' | 'under_review' | 'for_interview' | 
 export const REVIEW_STAGE_LABELS: Record<ReviewStage, string> = {
   pending_review: 'Pending review', under_review: 'Under review',
   for_interview: 'For interview', additional_requirements: 'Additional requirements needed',
-  approved: 'Approved', rejected: 'Rejected'
+  approved: 'Approved', rejected: 'Declined'
 }
 
 export function stageLabel(stage: ReviewStage | null | undefined, status: string): string {
-  return stage ? REVIEW_STAGE_LABELS[stage] : status === 'approved' ? 'Approved' : status === 'rejected' ? 'Rejected' : 'Pending review'
+  return stage ? REVIEW_STAGE_LABELS[stage] : status === 'approved' ? 'Approved' : status === 'rejected' ? 'Declined' : 'Pending review'
 }

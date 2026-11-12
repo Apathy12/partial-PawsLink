@@ -49,7 +49,7 @@ export function EducationHome({ publicView = false }: { publicView?: boolean } =
 
     {!publicView ? <section className="education-section adoption-feature" aria-labelledby="adoption-feature-title">
       <div className="adoption-feature-head">
-        <div><span className="step-label">Adoption and rehoming</span><h2 id="adoption-feature-title">Open for adoption</h2><p className="sub">Choose a pet and complete the adoption application form so CAVD can assess your household and care plan. Preference matching is optional.</p></div>
+        <div><span className="step-label">Adoption and rehoming</span><h2 id="adoption-feature-title">Open for adoption</h2><p className="sub">Pets recently approved by CAVD.</p></div>
         <Link className="btn" to="/app/bridge">Browse available pets →</Link>
       </div>
       {requests.error ? <Notice kind="bad">{requests.error}</Notice> : null}
@@ -60,7 +60,7 @@ export function EducationHome({ publicView = false }: { publicView?: boolean } =
             : !requests.applications || !ownedPetIds
             ? <button className="btn btn-sm" type="button" disabled>Loading application…</button>
             : <Link className="btn btn-sm" to={applicationPath(row.listing_id, requests.applications.get(row.listing_id))}>{applicationActionLabel(requests.applications.get(row.listing_id))}</Link>} />)}</div>
-        : <div className="adoption-empty"><p>No pets are open for adoption yet. CAVD publishes listings after review.</p><Link to="/app/bridge">How adoption works →</Link></div>}
+        : <div className="adoption-empty"><p>No pets are open for adoption yet. CAVD publishes listings after review.</p><Link to="/app/bridge">Go to Adoption →</Link></div>}
     </section> : null}
 
     <section id="care-guides" className="education-section" aria-labelledby="care-guides-title">

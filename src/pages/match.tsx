@@ -133,16 +133,16 @@ export function UserMatch() {
   return <UserShell>
     <div className="page-head">
       <Link className="record-link" to="/app/bridge">← Adoption</Link>
-      <h1>Find My Pet Match</h1>
-      <p className="sub">Find CAVD-approved pets that fit your preferences and household. Apply from a match; CAVD makes adoption decisions.</p>
+      <h1>Find My Match</h1>
+      <p className="sub">Rank CAVD-approved pets by how well they fit your home. The score is a guide; CAVD makes the adoption decision.</p>
     </div>
     {loading ? <p role="status">Loading your preferences and available pets…</p> : null}
     {error ? <Notice kind="bad">Matching is unavailable: {error}.</Notice> : null}
     {!loading && !error ? <>
       <form className="card match-form" onSubmit={event => void submit(event)}>
         <div className="page-head"><h2>Your preferences</h2>
-          <p className="sub">Pets are ranked by how closely they fit your answers, weighted by CAVD. Only a pet of a different animal type is left out; comfort with children and other pets is scored with the other criteria. “No preference” accepts any value for that field.</p>
-          <p className="sub">{weightsConfirmed ? `CAVD-reviewed weights, version ${weightVersion}.` : 'Default equal weights; CAVD weight review is pending.'} The score helps you compare pets; CAVD makes every adoption decision.</p>
+          <p className="sub">Pets are ranked by how closely they fit your answers. Only a different animal type leaves a pet out. “No preference” accepts anything.</p>
+          <p className="sub">{weightsConfirmed ? `Scoring weights reviewed by CAVD (version ${weightVersion}).` : 'Default equal scoring weights; CAVD review is pending.'}</p>
         </div>
         <div className="match-dropdown-grid">
           <Field label="Preferred animal type"><select name="preferred_species" value={answers.preferred_species} onChange={event => update('preferred_species', event.target.value as Answers['preferred_species'])}>
@@ -169,6 +169,7 @@ export function UserMatch() {
       {showResults ? <section id="match-results" className="adoption-section">
         <div className="page-head"><h2>Compatible pets</h2><p className="sub">{visibleMatches.length} shown · {matches.length} pet{matches.length === 1 ? '' : 's'} ranked by compatibility. All passed CAVD’s adoption checks.</p></div>
         <p className="sr-only" role="status">{skipNotice}</p>
+        {visibleMatches.length && visibleMatches[0].score < 75 ? <Notice kind="info">No close match yet. These are the closest pets to your answers.</Notice> : null}
         {skipped.size ? <div className="btn-row pagination-row"><span className="sub">{skipped.size} skipped in this view.</span><button className="btn btn-sm btn-outline" type="button" onClick={() => { setSkipped(new Set()); setSkipNotice('All skipped matches restored.') }}>Restore skipped pets</button></div> : null}
         {saved.error ? <Notice kind="warn">Saved pets are unavailable: {saved.error}</Notice> : null}
         {visibleMatches.length ? <div className="match-results">{visibleMatches.map((match, index) => {

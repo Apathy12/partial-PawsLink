@@ -48,7 +48,7 @@ export function ExplorePets() {
   else if (sort === 'name') shown.sort((a, b) => a.name.localeCompare(b.name))
   const activePage = Math.min(page, Math.max(0, Math.ceil(shown.length / 12) - 1))
   return <PublicFrame>
-    <div className="page-head"><h1>Explore pets</h1><p className="sub">Meet pets that pass CAVD’s adoption readiness checks. Browse freely, then sign in to apply. Preference matching is optional.</p></div>
+    <div className="page-head"><h1>Explore pets</h1><p className="sub">Every pet here has passed CAVD’s adoption checks. Log in to apply.</p></div>
     <form className="filters" onSubmit={event => event.preventDefault()}>
       <Field label="Name, breed or PET ID"><input type="search" value={query} onChange={event => { setQuery(event.target.value); setPage(0) }} /></Field>
       <Field label="Species"><select value={species} onChange={event => { setSpecies(event.target.value); setPage(0) }}><option value="any">Any species</option><option value="dog">Dogs</option><option value="cat">Cats</option><option value="other">Other</option></select></Field>
@@ -57,9 +57,9 @@ export function ExplorePets() {
       <Field label="Sort by"><select value={sort} onChange={event => { setSort(event.target.value); setPage(0) }}><option value="recommended">Featured</option><option value="newest">Newest listed</option><option value="youngest">Youngest first</option><option value="oldest">Oldest first</option><option value="name">Name A–Z</option></select></Field>
     </form>
     {loading ? <CardSkeletons label="Loading eligible pets…" /> : error ? <Notice kind="bad">{error}</Notice> : <>
-      <p className="sub">{shown.length} pet{shown.length === 1 ? '' : 's'} available. Current vaccination, completed spay/neuter, behavioral clearance, and CAVD review are required.</p>
+      <p className="sub">{shown.length} pet{shown.length === 1 ? '' : 's'} available.</p>
       {shown.length ? <div className="pet-grid">{shown.slice(activePage * 12, activePage * 12 + 12).map(pet => <ListingCard key={pet.listing_id} row={pet} href={`/p/${pet.qr_slug}`}
-        actions={myPetIds?.has(pet.pet_id) ? <Pill kind="owner">Your pet</Pill> : myPetIds ? <Link className="btn btn-sm" to={`/app/listings/${pet.listing_id}`}>Adoption options</Link> : <></>} />)}</div> : <Empty>No eligible pets match this view. Check again after CAVD completes its reviews.</Empty>}
+        actions={myPetIds?.has(pet.pet_id) ? <Pill kind="owner">Your pet</Pill> : myPetIds ? <Link className="btn btn-sm" to={`/app/listings/${pet.listing_id}`}>Adoption options</Link> : <></>} />)}</div> : <Empty>{pets.length ? 'No pets match these filters.' : 'No pets are open for adoption yet.'}</Empty>}
       {shown.length > 12 ? <div className="btn-row pagination-row"><button className="btn btn-sm btn-outline" disabled={!activePage} onClick={() => setPage(activePage - 1)}>Previous</button><span>Page {activePage + 1} of {Math.ceil(shown.length / 12)}</span><button className="btn btn-sm btn-outline" disabled={(activePage + 1) * 12 >= shown.length} onClick={() => setPage(activePage + 1)}>Next</button></div> : null}
     </>}
   </PublicFrame>

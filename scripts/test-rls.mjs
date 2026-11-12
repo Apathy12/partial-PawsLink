@@ -1938,6 +1938,66 @@ async function main() {
     else bad('the owner\u2019s correction is saved and marks the request answered', JSON.stringify(answered));
     await noEffect('another user cannot edit that registration', ID.other,
       `update public.pets set breed = 'Changed' where id = $1`, [draftPet]);
+
+    section('Migration 0023: account controls and API clean-up');
+    await client.query(await readFile(join(root, 'supabase/migrations/0023_account_controls.sql'), 'utf8'));
+    ok('applied 0023_account_controls.sql');
+    // Staff act with a verified login (aal2).
+    const staff = (sql, params = []) => async () => {
+      await client.query(`select set_config('request.jwt.claims', '{"aal":"aal2"}', true)`);
+      return client.query(sql, params);
+    };
+    const staffOk = async (name, sql, params = []) => {
+      try { const r = await act(ID.cavd, staff(sql, params)); ok(name); return r; }
+      catch (e) { bad(name, 'expected success, got: ' + e.message); return null; }
+    };
+    const staffDenied = async (name, sql, params, expect) => {
+      try { await act(ID.cavd, staff(sql, params)); bad(name, 'expected the database to raise'); }
+      catch (e) { if (new RegExp(expect, 'i').test(e.message)) ok(name); else bad(name, 'refused for the wrong reason: ' + e.message); }
+    };
+    await staffDenied('staff cannot disable their own account', 'update public.profiles set is_active = false where id = $1', [ID.cavd], 'your own');
+    await staffDenied('staff cannot change their own account type', `update public.profiles set role = 'user' where id = $1`, [ID.cavd], 'your own');
+    const disabled = await staffOk('staff can disable another account',
+      'update public.profiles set is_active = false where id = $1 returning is_active', [ID.other]);
+    if (disabled?.rows[0]?.is_active === false) ok('the other account is disabled'); else bad('the other account is disabled', JSON.stringify(disabled?.rows));
+    const promoted = await staffOk('staff can make another account CAVD staff',
+      `update public.profiles set role = 'cavd' where id = $1 returning role`, [ID.other]);
+    if (promoted?.rows[0]?.role === 'cavd') ok('the other account becomes CAVD staff'); else bad('the other account becomes CAVD staff', JSON.stringify(promoted?.rows));
+    const approved = await staffOk('staff can approve a registration',
+      `update public.pets set registry_status = 'approved', registry_note = null where id = $1 returning decided_by`, [draftPet]);
+    if (approved?.rows[0]?.decided_by === ID.cavd) ok('the registration decision is stamped with the staff member who made it');
+    else bad('the registration decision is stamped with the staff member who made it', JSON.stringify(approved?.rows));
+
+    const idUser = 'dddddddd-0000-4000-8000-000000000002';
+    await client.query(`insert into auth.users(id,email,raw_user_meta_data) values($1,'id-owner@demo.local','{"name":"ID Owner"}')`, [idUser]);
+    await client.query(`insert into storage.objects(bucket_id,name,owner) values('identity-documents',$1,$2)`, [idUser + '/id.jpg', idUser]);
+    const accepted = (await commitAs(idUser, () => client.query(`insert into public.verification_requests(user_id,requested_role,id_type,id_path)
+      values($1,'user','passport',$2) returning id, status`, [idUser, idUser + '/id.jpg']))).rows[0];
+    if (accepted?.status === 'approved') ok('an uploaded owner ID is still accepted on submit');
+    else bad('an uploaded owner ID is still accepted on submit', JSON.stringify(accepted));
+    await staffDenied('rejecting an accepted ID needs a reason',
+      `update public.verification_requests set status = 'rejected' where id = $1`, [accepted.id], 'reason');
+    await noEffect('an owner cannot reject their own accepted ID', idUser,
+      `update public.verification_requests set status = 'rejected', review_note = 'x' where id = $1`, [accepted.id]);
+    const dutyRejected = await staffOk('staff can reject an accepted ID',
+      `update public.verification_requests set status = 'rejected', review_note = 'Blurred photo' where id = $1 returning reviewed_by`, [accepted.id]);
+    if (dutyRejected?.rows[0]?.reviewed_by === ID.cavd) ok('the ID rejection is stamped with the staff member who made it');
+    else bad('the ID rejection is stamped with the staff member who made it', JSON.stringify(dutyRejected?.rows));
+
+    for (const [name, sql] of [['a permission helper', 'select public.is_cavd()'], ['the ownership helper', `select public.owns_pet('${draftPet}')`]]) {
+      try { await asRole('anon', () => client.query(sql)); bad('a visitor cannot call ' + name); }
+      catch (e) { if (e.code === '42501') ok('a visitor cannot call ' + name); else bad('a visitor cannot call ' + name, e.message); }
+    }
+    try { await act(ID.owner, () => client.query('select public.guard_pets()')); bad('internal guards are not callable through the API'); }
+    catch (e) { if (e.code === '42501') ok('internal guards are not callable through the API'); else bad('internal guards are not callable through the API', e.message); }
+    await allowed('guards still run for owners after the clean-up', ID.owner,
+      `update public.pets set markings = 'White chest' where owner_id = $1 and registry_status = 'pending' returning id`, [ID.owner]);
+    await denied('guards still refuse owners after the clean-up', ID.owner,
+      `update public.pets set registry_status = 'approved' where owner_id = $1`, [ID.owner], 'registry status');
+    try {
+      const r = await asRole('anon', () => client.query('select count(*)::int as n from public.public_pets'));
+      if (r.rows[0].n > 0) ok('visitors can still read the public pet list'); else bad('visitors can still read the public pet list', 'no rows');
+    } catch (e) { bad('visitors can still read the public pet list', e.message); }
   } finally {
     await client.end().catch(() => {});
     await pg.stop().catch(() => {});

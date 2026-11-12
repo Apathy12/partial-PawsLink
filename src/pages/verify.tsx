@@ -94,7 +94,7 @@ export function VerifyIdentityPage() {
       if (request.status === 'approved') {
         window.location.replace(appUrl('/app'))
       } else {
-        setError('Your ID was saved, but automatic owner access is not active yet. Please ask the PawsLink administrator to apply migration 0009.')
+        setError('Your ID was saved, but your account is not active yet. Please contact CAVD.')
       }
     } catch (err) {
       const cleanup = uploadedPath
@@ -121,7 +121,7 @@ export function VerifyIdentityPage() {
           {pending ? (
             <div className="card verification-status">
               <h2>Your ID is recorded</h2>
-              <p>Your owner access should open after the ID submission is processed. Refresh this page; if it stays here, ask the PawsLink administrator to apply migration 0009.</p>
+              <p>Your account opens once the ID is processed. Refresh this page; if it stays here, contact CAVD.</p>
               <button className="btn btn-outline" type="button" onClick={() => void refresh()}>Refresh account status</button>
             </div>
           ) : (

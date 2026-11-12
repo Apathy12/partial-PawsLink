@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { fmtDate, petLine, sourceLabel } from '../lib/format'
+import { capitalize, fmtDate, petLine, sourceLabel } from '../lib/format'
 import { explain, supabase } from '../lib/supabase'
+import { useAuth } from '../lib/auth'
 import type { Pet, Profile, VerificationRequest } from '../lib/types'
-import { Empty, Notice, Photo, registryPill } from '../ui'
+import { Empty, Field, NoteAction, Notice, Photo, registryPill } from '../ui'
 import { OfficeShell } from './office'
+import { deleteRejectedDocument } from './verification'
 
 type AuthSummary = {
   email: string | null
@@ -31,6 +33,9 @@ export function OfficeAccount() {
   const [documentError, setDocumentError] = useState<string | null>(null)
   const [documentLinks, setDocumentLinks] = useState<Record<string, string>>({})
   const [openingId, setOpeningId] = useState<string | null>(null)
+  const [version, setVersion] = useState(0)
+  const [saved, setSaved] = useState<{ ok: boolean; text: string } | null>(null)
+  const me = useAuth().profile
 
   useEffect(() => {
     if (!id) return
@@ -57,7 +62,7 @@ export function OfficeAccount() {
       if (!active) return
       setDocumentLinks(Object.fromEntries(signedDocuments.filter((entry): entry is readonly [string, string] => entry !== null)))
       setAuthError(authResult.error
-        ? 'Email details are unavailable. Ask the administrator to apply migration 0010.' : null)
+        ? 'Email details are unavailable. Ask the system administrator to update the database.' : null)
       const otherErrors = [profileResult.error, requestResult.error, petResult.error]
         .filter(Boolean).map(item => explain(item))
       setError(otherErrors.length ? otherErrors.join(' ') : null)
@@ -67,7 +72,26 @@ export function OfficeAccount() {
       if (active) { setError(explain(cause as { message?: string })); setLoading(false) }
     })
     return () => { active = false }
-  }, [id])
+  }, [id, version])
+
+  async function change(update: Partial<Profile>, done: string) {
+    const { error: saveError } = await supabase.from('profiles').update(update).eq('id', id)
+    setSaved(saveError ? { ok: false, text: explain(saveError) } : { ok: true, text: done })
+    if (!saveError) setVersion(current => current + 1)
+  }
+
+  async function rejectId(request: VerificationRequest, reason: string) {
+    const { data, error: rejectError } = await supabase.from('verification_requests')
+      .update({ status: 'rejected', review_note: reason }).eq('id', request.id).select('*').single()
+    if (rejectError || !data) { setSaved({ ok: false, text: explain(rejectError) }); return }
+    try {
+      await deleteRejectedDocument(data as VerificationRequest)
+      setSaved({ ok: true, text: 'ID rejected and its file deleted. The owner is asked to upload a new one.' })
+    } catch (cause) {
+      setSaved({ ok: false, text: `The ID was rejected, but its file is not deleted yet. Open ID reviews to retry. ${explain(cause as { message?: string })}` })
+    }
+    setVersion(current => current + 1)
+  }
 
   async function viewDocument(request: VerificationRequest) {
     if (!request.id_path) return
@@ -94,16 +118,15 @@ export function OfficeAccount() {
 
   const avatarUrl = person.avatar_path
     ? supabase.storage.from('profile-photos').getPublicUrl(person.avatar_path).data.publicUrl : null
-  const accountType = person.role === 'cavd' ? 'CAVD office' : 'Pet owner / adopter'
+  const accountType = person.role === 'cavd' ? 'CAVD staff' : 'Pet owner / adopter'
 
   return <OfficeShell>
     <p className="sub"><Link to="/office/accounts">← Back to accounts</Link></p>
     <div className="page-head">
-      <div className="step-label">CAVD · Registered account</div>
       <h1>{person.name}</h1>
-      <p className="sub">Profile, submitted identification, and currently registered pets.</p>
     </div>
     {error ? <Notice kind="bad">Some account details could not be loaded. {error}</Notice> : null}
+    {saved ? <div role="status"><Notice kind={saved.ok ? 'ok' : 'bad'}>{saved.text}</Notice></div> : null}
     <div className="office-account-grid">
       <section className="card" aria-labelledby="account-profile-title">
         <div className="office-account-heading"><div className="avatar office-account-avatar"><Photo url={avatarUrl} name={person.name} /></div><div><h2 id="account-profile-title">Profile</h2><p className="sub">{person.is_active ? 'Active account' : 'Disabled account'}</p></div></div>
@@ -116,9 +139,26 @@ export function OfficeAccount() {
           <dt>Location</dt><dd>{person.location || 'Not recorded'}</dd>
           <dt>Account type</dt><dd>{accountType}</dd>
           <dt>Registered</dt><dd>{fmtDate(person.created_at)}</dd>
-          <dt>Last sign-in</dt><dd>{authError ? 'Unavailable' : fmtDate(authSummary?.last_sign_in_at)}</dd>
+          <dt>Last login</dt><dd>{authError ? 'Unavailable' : fmtDate(authSummary?.last_sign_in_at)}</dd>
           <dt>Account ID</dt><dd className="mono">{person.id}</dd>
         </dl>
+        {me?.id === person.id ? <p className="hint">This is your own account. Another CAVD staff account must change its type or disable it.</p>
+          : <form className="account-access" onSubmit={event => {
+            event.preventDefault()
+            void change({ role: new FormData(event.currentTarget).get('role') as Profile['role'] }, 'Account type saved.')
+          }}>
+            <h3>Account access</h3>
+            <Field label="Account type" hint="CAVD staff can open the office and decide registrations, listings and applications.">
+              <select name="role" key={person.role} defaultValue={person.role}>
+                <option value="user">Pet owner / adopter</option><option value="cavd">CAVD staff</option>
+              </select>
+            </Field>
+            <div className="btn-row">
+              <button className="btn btn-sm btn-outline" type="submit">Save account type</button>
+              <button className="btn btn-sm btn-danger" type="button" onClick={() => void change({ is_active: !person.is_active }, person.is_active ? 'Account disabled.' : 'Account enabled.')}>{person.is_active ? 'Disable account' : 'Enable account'}</button>
+            </div>
+            <p className="hint">A disabled account cannot log in. Its pets and records stay.</p>
+          </form>}
       </section>
 
       <section className="card" aria-labelledby="account-ids-title">
@@ -129,16 +169,17 @@ export function OfficeAccount() {
           <h3>{idLabels[request.id_type] ?? 'Earlier ID'}</h3>
           <dl className="kv">
             <dt>Submitted</dt><dd>{fmtDate(request.created_at)}</dd>
-            <dt>Status</dt><dd>{request.requested_role === 'user' && request.status === 'approved' && !request.reviewed_by ? 'Account activated' : request.status}</dd>
+            <dt>Status</dt><dd>{request.requested_role === 'user' && request.status === 'approved' && !request.reviewed_by ? 'Account activated' : capitalize(request.status)}</dd>
             {request.review_note ? <><dt>Decision note</dt><dd>{request.review_note}</dd></> : null}
           </dl>
           {request.id_path ? <div className="btn-row">
             {!documentLinks[request.id] ? <button type="button" className="btn btn-sm btn-outline" disabled={openingId === request.id} onClick={() => void viewDocument(request)}>{openingId === request.id ? 'Loading ID…' : 'View submitted ID'}</button> : <a className="btn btn-sm btn-outline" href={documentLinks[request.id]} target="_blank" rel="noreferrer">Open ID in another tab</a>}
+            {request.status === 'approved' ? <NoteAction label="Reject ID" danger prompt="Reason for rejecting" hint="The owner will see this and must upload a new ID. The file is deleted." submit="Reject ID" onSend={reason => rejectId(request, reason)} /> : null}
           </div> : <p className="hint">{request.status === 'rejected' ? 'Rejected ID file was deleted.' : 'No ID file is available.'}</p>}
           {request.id_path && documentLinks[request.id] ? request.id_path.toLowerCase().endsWith('.pdf')
             ? <iframe className="office-account-id-preview office-account-id-pdf" src={documentLinks[request.id]} title={`${idLabels[request.id_type]} submitted by ${person.name}`} />
             : <img className="office-account-id-preview" src={documentLinks[request.id]} alt={`${idLabels[request.id_type]} submitted by ${person.name}`} /> : null}
-        </article>)}</div> : <Empty>{person.verification_exempt ? 'No ID submission is on file for this existing or exempt account.' : 'No ID has been submitted yet.'}</Empty>}
+        </article>)}</div> : <Empty>{person.verification_exempt ? 'No ID on file. This account did not need to upload one.' : 'No ID has been submitted yet.'}</Empty>}
       </section>
     </div>
 

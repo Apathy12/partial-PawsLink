@@ -592,3 +592,12 @@ label.field:has(:required) > .lbl::after { content: ' *'; color: var(--danger); 
 @media (max-width: 384px) {
   .site:not(.site-public) .brand-copy { display: none; }
 }
+.note-action { flex-basis: 100%; min-width: min(100%, 16rem); margin-top: 8px; text-align: left; }
+.account-access { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--line); }
+/* On phones Log out sits at the bottom of Profile, which leaves the header to the PawsLink name. */
+.profile-logout { display: none; }
+@media (max-width: 760px) {
+  .site-user.has-tabbar .topbar-actions > .header-action { display: none; }
+  .site-user.has-tabbar .brand-copy { display: grid; }
+  .profile-logout { display: flex; justify-content: center; width: 100%; margin-top: 8px; }
+}

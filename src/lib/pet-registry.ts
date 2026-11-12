@@ -39,7 +39,7 @@ export function ownerAnswered(pet: Registration) {
 
 /** Details an owner registration should carry before CAVD approves it. */
 export function missingPetDetails(pet: Pick<Pet, 'breed' | 'color' | 'markings' | 'about' | 'photo_url'>) {
-  return ([['breed', pet.breed], ['colour', pet.color], ['markings', pet.markings], ['description', pet.about], ['photo', pet.photo_url]] as const)
+  return ([['breed', pet.breed], ['color', pet.color], ['markings', pet.markings], ['description', pet.about], ['photo', pet.photo_url]] as const)
     .filter(([, value]) => !value?.trim()).map(([label]) => label)
 }
 

@@ -124,4 +124,27 @@ assert.equal(parseMatchDraft('not json'), null)
 assert.equal(parseMatchDraft(JSON.stringify({ answers: { preferred_species: 'cat' } })), null)
 assert.equal(parseMatchDraft(null), null)
 assert.equal(preferenceAnswerRows(DEFAULT_PREFERENCES).length, 10)
+
+// Every answer combination returns at least one pet while one eligible dog and one eligible cat
+// have traits: only animal type removes a pet, every other answer only changes the score.
+const oneOfEach = [
+  { listing_id: 'only-dog', pet_id: 'only-dog', name: 'Only dog', species: 'dog', size: 'large', birth_date: '2015-01-01' },
+  { listing_id: 'only-cat', pet_id: 'only-cat', name: 'Only cat', species: 'cat', size: 'small', birth_date: '2026-06-01' }
+]
+const hardTraits = oneOfEach.map(row => ({ pet_id: row.pet_id, activity_level: 5, temperament: 'protective',
+  child_compatible: false, pet_compatible: false, space_need: 5, time_need: 5, experience_need: 5 }))
+let combinations = 0
+for (const preferred_species of ['any', 'dog', 'cat'])
+  for (const preferred_size of ['any', 'small', 'medium', 'large'])
+    for (const preferred_age of ['any', 'baby', 'young', 'adult', 'senior'])
+      for (const temperament_preference of ['any', 'calm', 'friendly', 'playful', 'independent', 'protective'])
+        for (const level of [1, 3, 5])
+          for (const household of [false, true]) {
+            const answers = { ...DEFAULT_PREFERENCES, user_id: 'any-adopter', preferred_species, preferred_size, preferred_age,
+              temperament_preference, activity_preference: level, living_space: level, time_availability: level,
+              ownership_experience: level, children_at_home: household, other_pets_at_home: household }
+            assert.ok(rankListings(oneOfEach, hardTraits, answers, today).length >= 1, JSON.stringify(answers))
+            combinations++
+          }
+assert.equal(combinations, 2160)
 console.log('Adopter matching checks passed.')

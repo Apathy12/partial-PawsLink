@@ -39,12 +39,16 @@ export function sizeLabel(s: string) {
   return s[0].toUpperCase() + s.slice(1)
 }
 
+export function capitalize(s: string) {
+  return s[0].toUpperCase() + s.slice(1)
+}
+
 export function sexLabel(s: string) {
   return s[0].toUpperCase() + s.slice(1)
 }
 
 export function sourceLabel(s: string) {
-  return s === 'shelter' ? 'CAVD shelter' : 'Direct owner'
+  return s === 'shelter' ? 'CAVD shelter' : 'Privately owned'
 }
 
 export function petLine(p: { breed: string | null; sex: string; size: string; birth_date: string }) {

@@ -30,7 +30,6 @@ export function UserShell({ children, showIdentity = false, inboxCount }: { chil
       showIdentity={showIdentity}
       inboxCount={inboxCount ?? ownCount}
       onSignOut={() => void signOut()}
-      extra={<span className="sub">Register pets, request listings, and find a pet match. CAVD decides.</span>}
       nav={[
         { to: '/app', label: 'Home', end: true },
         { to: '/app/pets', label: 'My pets', end: true },
@@ -63,13 +62,13 @@ export function UserPets() {
     <UserShell>
       <div className="page-head">
         <h1>My pets</h1>
-        <p className="sub">Registration is the entry point. Each pet gets a code, but its public record and adoption listing require CAVD approval.</p>
+        <p className="sub">CAVD approves each registration before the pet’s public record opens.</p>
       </div>
       <div className="btn-row">
         <Link className="btn" to="/app/pets/new">Register a pet</Link>
       </div>
       <div style={{ height: '1rem' }} />
-      {pets.length === 0 ? <Empty>Nothing registered yet.</Empty> : (
+      {pets.length === 0 ? <Empty>No pets registered yet.</Empty> : (
         <div className="pet-list">
           {pets.map(p => (
             <article className="pet-list-row" key={p.id}>
@@ -105,7 +104,7 @@ function PetFields({ pet }: { pet?: Pet }) {
         <select name="size" required defaultValue={pet?.size ?? ''}><option value="" disabled>Choose…</option><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select>
       </Field>
       <Field label="Birth date"><input type="date" name="birth_date" required defaultValue={pet?.birth_date} /></Field>
-      <Field label="Colour"><input name="color" required defaultValue={pet?.color ?? ''} /></Field>
+      <Field label="Color"><input name="color" required defaultValue={pet?.color ?? ''} /></Field>
     </div>
     <Field label="Markings" hint="Write None if there are no markings."><input name="markings" required defaultValue={pet?.markings ?? ''} /></Field>
     <Field label="Pet description" hint="If you request an adoption listing, this description becomes public. Do not include phone numbers or addresses."><textarea name="about" required defaultValue={pet?.about ?? ''} /></Field>
@@ -154,7 +153,7 @@ export function UserPetNew() {
         photo_url
       }).select('id').single()
       if (error) throw error
-      ok('Submitted. The pet code is ready; CAVD must verify the record before it becomes public.')
+      ok('Registration submitted. CAVD will review it.')
       nav('/app/pets/' + data.id)
     } catch (err) {
       bad(explain(err as { message?: string }))
@@ -168,12 +167,11 @@ export function UserPetNew() {
       <ToastHost toasts={toasts} />
       <div className="page-head">
         <h1>Register a pet</h1>
-        <p className="sub">The record starts pending and receives a pet code. It is not publicly visible or listed until CAVD approves it.</p>
+        <p className="sub">All details are required. CAVD reviews the registration before the pet’s public record opens.</p>
       </div>
       <form className="card form-panel" onSubmit={onSubmit}>
-        <Notice kind="info">Fill in every pet detail. CAVD reads the complete request before approving it.</Notice>
         <PetFields />
-        <button className="btn" type="submit" disabled={busy}>{busy ? 'Submitting…' : 'Submit for CAVD verification'}</button>
+        <button className="btn" type="submit" disabled={busy}>{busy ? 'Submitting…' : 'Submit for CAVD approval'}</button>
       </form>
     </UserShell>
   )
@@ -216,7 +214,7 @@ export function UserPetDetail() {
     })
     setBusy(false)
     if (error) bad(explain(error))
-    else { ok('Request sent. Hidden from adopters until CAVD approves it.'); load() }
+    else { ok('Listing request sent to CAVD.'); load() }
   }
 
   async function saveDetails(e: FormEvent<HTMLFormElement>) {
@@ -261,10 +259,10 @@ export function UserPetDetail() {
             </div>
           </div>
         </div>
-        {pet.registry_status === 'rejected' ? <Notice kind="bad">Rejected: {pet.registry_note || 'See CAVD.'}</Notice> : null}
+        {pet.registry_status === 'rejected' ? <Notice kind="bad">Registration rejected: {pet.registry_note || 'Contact CAVD for the reason.'}</Notice> : null}
         {requested ? <Notice kind="warn"><strong>CAVD asks you to complete this registration:</strong> {pet.registry_note}
           {ownerAnswered(pet) ? <div>You updated the details on {fmtDate(pet.updated_at)}. CAVD will review them again.</div> : null}</Notice>
-          : pet.registry_status === 'pending' ? <Notice kind="warn">Waiting for CAVD. The pet code is ready; the public record opens after approval.</Notice> : null}
+          : pet.registry_status === 'pending' ? <Notice kind="warn">Waiting for CAVD approval. The public record opens once approved.</Notice> : null}
       </div>
       {pet.registry_status === 'pending' ? <details className="card form-panel pet-correction" open={requested}>
         <summary>{requested ? 'Complete pet details' : 'Edit pet details'}</summary>
@@ -293,15 +291,15 @@ export function UserPetDetail() {
           {pet.registry_status === 'approved' && !listing ? (
             <form className="card" onSubmit={requestListing}>
               <h2>Request an adoption listing</h2>
-              <p className="sub">CAVD reviews this. Adopters cannot see it until approval.</p>
-              <Field label="Why this pet needs a home" hint="CAVD reviews this before publishing it. Do not include contact details or a home address.">
+              <p className="sub">Adopters see the listing only after CAVD approves it.</p>
+              <Field label="Why this pet needs a home" hint="This text becomes public. Do not include contact details or a home address.">
                 <textarea value={notes} onChange={e => setNotes(e.target.value)} required />
               </Field>
               <button className="btn btn-outline" type="submit" disabled={busy}>Send request to CAVD</button>
             </form>
           ) : null}
-          {listing?.status === 'pending' ? <Notice kind="warn">Listing request is with CAVD. It is not on the public bridge.</Notice> : null}
-          {listing?.status === 'approved' && eligibilityReasons(pet, adoptionChecks, visits[0]?.clearance_status).length ? <Notice kind="warn">The listing is approved, but this pet is hidden from adoption while CAVD completes or renews its eligibility review. Availability, current vaccination, completed sterilization, behavioral clearance and a Cleared veterinary visit are required.</Notice> : null}
+          {listing?.status === 'pending' ? <Notice kind="warn">Listing request sent. Waiting for CAVD approval.</Notice> : null}
+          {listing?.status === 'approved' && eligibilityReasons(pet, adoptionChecks, visits[0]?.clearance_status).length ? <Notice kind="warn">The listing is approved, but the pet is hidden from adoption until CAVD completes its eligibility review.</Notice> : null}
         </div>
         <div>
           {pet.registry_status === 'approved' ? (
@@ -311,17 +309,17 @@ export function UserPetDetail() {
               <Link className="btn btn-outline" to={'/p/' + pet.qr_slug}>Open public record</Link>
             </div>
           ) : (
-            <div className="card"><h2>Public pet record</h2><p className="sub">Available after CAVD verifies this registration.</p></div>
+            <div className="card"><h2>Public pet record</h2><p className="sub">Opens after CAVD approves this registration.</p></div>
           )}
           <div className="card">
-            <h2>Public health flags</h2>
+            <h2>Pet details</h2>
             <dl className="kv">
-              <dt>Birthday</dt><dd>{fmtDate(pet.birth_date)}</dd>
+              <dt>Birth date</dt><dd>{fmtDate(pet.birth_date)}</dd>
               <dt>Weight</dt><dd>{pet.weight_kg ? `${pet.weight_kg} kg` : 'Not recorded'}</dd>
               <dt>Color</dt><dd>{pet.color || 'Not recorded'}</dd>
               <dt>Markings</dt><dd>{pet.markings || 'Not recorded'}</dd>
               <dt>Rabies</dt><dd>{pet.rabies_vaccinated ? `Yes, ${fmtDate(pet.rabies_vaccinated_on)}` : 'Not marked by CAVD'}</dd>
-              <dt>Sterilised</dt><dd>{pet.sterilized ? 'Yes' : 'No'}</dd>
+              <dt>Sterilized</dt><dd>{pet.sterilized ? 'Yes' : 'No'}</dd>
               <dt>Custody</dt><dd>{sourceLabel(pet.source)}</dd>
             </dl>
           </div>
@@ -423,20 +421,19 @@ export function UserBridge() {
   return (
     <UserShell>
       <div className="page-head">
-        <span className="step-label">One account for pet owners and adopters</span>
         <h1>Adoption</h1>
-        <p className="sub">Complete an adoption form for an available pet, explore Find My Pet Match, or request a new home for a pet you own.</p>
+        <p className="sub">Apply for a pet, find your best match, or request a new home for a pet you own.</p>
       </div>
       <div className="adoption-paths" aria-label="Adoption actions">
-        <Link className="quicklink" to="/app/match"><span className="quicklink-icon" aria-hidden="true">★</span><span><strong>Find My Pet Match</strong><small>Answer 10 questions, see ranked pets, and apply from a match.</small></span><span aria-hidden="true">→</span></Link>
+        <Link className="quicklink" to="/app/match"><span className="quicklink-icon" aria-hidden="true">★</span><span><strong>Find My Match</strong><small>Answer 10 questions, see ranked pets, and apply from a match.</small></span><span aria-hidden="true">→</span></Link>
         <Link className="quicklink" to="/app/saved"><span className="quicklink-icon" aria-hidden="true">♥</span><span><strong>Saved pets</strong><small>Return to pets you want to consider.</small></span><span aria-hidden="true">→</span></Link>
         <a className="quicklink" href="#list-my-pet"><span className="quicklink-icon" aria-hidden="true">＋</span><span><strong>Find my pet a home</strong><small>Request a listing for a pet on your account.</small></span><span aria-hidden="true">→</span></a>
         <Link className="quicklink" to="/app/applications"><span className="quicklink-icon" aria-hidden="true">✉</span><span><strong>My applications</strong><small>See the status of pets you applied for.</small></span><span aria-hidden="true">→</span></Link>
       </div>
       <section id="open-for-adoption" className="adoption-section" aria-labelledby="adoption-open-title">
-      <div className="page-head"><h2 id="adoption-open-title">Open for adoption</h2><p className="sub">Choose a pet and complete the adoption application form. CAVD will assess your household, experience and care plan before deciding. Preference matching is optional.</p></div>
+      <div className="page-head"><h2 id="adoption-open-title">Open for adoption</h2><p className="sub">Choose a pet to see its details and apply.</p></div>
       <form className="card filters" onSubmit={e => e.preventDefault()}>
-        <Field label="Search species">
+        <Field label="Species">
           <select value={species} onChange={e => { setSpecies(e.target.value); setPage(0) }}>
             <option value="all">Any species</option><option value="dog">Dogs</option><option value="cat">Cats</option><option value="other">Other</option>
           </select>
@@ -479,17 +476,17 @@ export function UserBridge() {
           </>} />)}</div>
         <Pagination label="Open for adoption" page={activePage} pageSize={ADOPTION_PAGE_SIZE} total={shown.length} onChange={changePage} />
         </>
-        : !loading && !error ? <Empty>{rows.length ? 'No approved pet matches these filters.' : 'No pets are open for adoption yet. CAVD publishes listings after review.'}</Empty> : null}
+        : !loading && !error ? <Empty>{rows.length ? 'No pets match these filters.' : 'No pets are open for adoption yet. CAVD publishes listings after review.'}</Empty> : null}
       </section>
       <section id="list-my-pet" className="adoption-section" aria-labelledby="adoption-list-title">
-        <div className="page-head"><h2 id="adoption-list-title">Find my pet a home</h2><p className="sub">Select one of your registered pets to request an adoption listing. CAVD reviews it before the pet appears in matching.</p></div>
+        <div className="page-head"><h2 id="adoption-list-title">Find my pet a home</h2><p className="sub">Request an adoption listing for one of your registered pets.</p></div>
         {myPetsLoading ? <p className="sub" role="status">Loading your pets…</p> : null}
         {myPetsError ? <Notice kind="bad">Could not load your pets: {myPetsError}</Notice> : null}
         {!myPetsLoading && !myPetsError && myPets.length ? <div className="adoption-owned-list">{myPets.map(pet => {
           const listing = myListings.find(row => row.pet_id === pet.id)
           return <article className="adoption-owned-row" key={pet.id}>
             <div className="avatar"><Photo url={pet.photo_url} name={pet.name} /></div>
-            <div className="adoption-owned-copy"><h3>{pet.name}</h3><span className="sub">{pet.registry_status === 'approved' ? listing?.status === 'approved' ? eligibilityReasons(pet, myAdoptionChecks.find(row => row.pet_id === pet.id) || null, myLatestVisits.get(pet.id)).length ? 'Hidden — CAVD eligibility review needed' : 'Open for adoption' : listing?.status === 'pending' ? 'Adoption request under CAVD review' : 'Ready to request a listing' : 'Pet registration must be approved first'}</span></div>
+            <div className="adoption-owned-copy"><h3>{pet.name}</h3><span className="sub">{pet.registry_status === 'approved' ? listing?.status === 'approved' ? eligibilityReasons(pet, myAdoptionChecks.find(row => row.pet_id === pet.id) || null, myLatestVisits.get(pet.id)).length ? 'Hidden — CAVD eligibility review needed' : 'Open for adoption' : listing?.status === 'pending' ? 'Listing request waiting for CAVD' : 'Ready to request a listing' : 'Pet registration must be approved first'}</span></div>
             <Link className="btn btn-outline btn-sm" to={'/app/pets/' + pet.id}>{listing ? 'View pet and listing' : pet.registry_status === 'approved' ? 'Request listing' : 'View pet'}</Link>
           </article>
         })}</div> : !myPetsLoading && !myPetsError ? <div className="adoption-empty"><p>You have no registered pets yet.</p><Link to="/app/pets/new">Register a pet →</Link></div> : null}
@@ -520,7 +517,7 @@ export function UserListing() {
 
   return (
     <UserShell>
-      <Link className="btn btn-sm btn-outline" to="/app/bridge">← All listings</Link>
+      <Link className="btn btn-sm btn-outline" to="/app/bridge">← Adoption</Link>
       <div className="split" style={{ marginTop: '1rem' }}>
         <div className="record-main">
           <div className="pet-photo record-photo"><Photo url={row.photo_url} name={row.name} /></div>
@@ -537,9 +534,8 @@ export function UserListing() {
             <dt>Species</dt><dd>{speciesLabel(row.species)}</dd>
             <dt>Sex</dt><dd>{sexLabel(row.sex)}</dd>
             <dt>Age</dt><dd>{ageLabel(row.birth_date)}</dd>
-            <dt>Listing status</dt><dd>Listing approved</dd>
             <dt>Rabies</dt><dd>{row.rabies_vaccinated ? `Vaccinated ${fmtDate(row.rabies_vaccinated_on)}` : 'Not marked'}</dd>
-            <dt>Sterilised</dt><dd>{row.sterilized ? 'Yes' : 'No'}</dd>
+            <dt>Sterilized</dt><dd>{row.sterilized ? 'Yes' : 'No'}</dd>
           </dl>
           <Notice kind="info">Owner contact is withheld. CAVD handles the transfer.</Notice>
         </div>
@@ -548,12 +544,12 @@ export function UserListing() {
           <Notice kind="info">This is your pet. You can manage its listing from <Link to={`/app/pets/${row.pet_id}`}>My pets</Link>.</Notice>
         </div> : <div className="record-aside">
           <h2>Interested in this pet?</h2>
-          <p className="sub">Complete the adoption application form so CAVD can assess your household and care plan. Preference matching is optional.</p>
+          <p className="sub">Apply and CAVD will review your household and care plan.</p>
           <div className="btn-row" style={{ marginBottom: '1rem' }}>
             {requests.applications && myPetIds ? <Link className="btn" to={applicationPath(row.listing_id, mine)}>{applicationActionLabel(mine)}</Link> : <button className="btn" type="button" disabled>Loading application…</button>}
             {!saved.error ? <SaveListingButton saved={saved.ids?.has(row.listing_id) ?? false} disabled={!saved.ids}
               busy={saved.busyId === row.listing_id} onToggle={() => void saved.toggle(row.listing_id)} /> : null}
-            <Link className="btn btn-sm btn-outline" to="/app/match">Find My Pet Match</Link>
+            <Link className="btn btn-sm btn-outline" to="/app/match">Find My Match</Link>
           </div>
           {saved.error ? <Notice kind="warn">Saved pets are unavailable: {saved.error}</Notice> : null}
           {requests.error ? <Notice kind="bad">{requests.error}</Notice> : null}
@@ -587,7 +583,7 @@ export function UserApplications() {
       <div className="page-head">
         <Link className="record-link" to="/app/bridge">← Adoption</Link>
         <h1>My applications</h1>
-        <p className="sub">CAVD reviews every application. Only CAVD can approve an adoption.</p>
+        <p className="sub">Track each application’s review stage and next step.</p>
       </div>
       {rows.length === 0 ? <Empty>No applications yet.</Empty> : (
         <div className="card application-cards">

@@ -1,5 +1,5 @@
 import { useState, type InputHTMLAttributes, type ReactNode } from 'react'
-import { NavLink } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
 import { CLEARANCE_LABELS } from './lib/eligibility'
 import type { Application, Pet, PublicListing, Visit } from './lib/types'
 import { ageLabel, assetUrl, sexLabel, speciesLabel } from './lib/format'
@@ -75,7 +75,7 @@ export function PasswordInput(props: Omit<InputHTMLAttributes<HTMLInputElement>,
 }
 
 export function sourcePill(source: string) {
-  return source === 'shelter' ? <Pill kind="shelter">CAVD shelter</Pill> : <Pill kind="owner">Owner listing</Pill>
+  return source === 'shelter' ? <Pill kind="shelter">CAVD shelter</Pill> : <Pill kind="owner">Privately owned</Pill>
 }
 
 export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
@@ -86,6 +86,30 @@ export function Field({ label, hint, children }: { label: string; hint?: string;
       {hint ? <span className="hint">{hint}</span> : null}
     </label>
   )
+}
+
+// A button that opens a short form in place, for actions that need a written note.
+export function NoteAction({ label, prompt, hint, initial = '', submit = 'Send', danger = false, onSend }: {
+  label: string; prompt: string; hint?: string; initial?: string; submit?: string; danger?: boolean
+  onSend: (note: string) => Promise<unknown> | void
+}) {
+  const [open, setOpen] = useState(false)
+  const [note, setNote] = useState(initial)
+  const [busy, setBusy] = useState(false)
+  if (!open) return <button className={'btn btn-sm ' + (danger ? 'btn-danger' : 'btn-outline')} type="button" onClick={() => { setNote(initial); setOpen(true) }}>{label}</button>
+  return <form className="note-action" onSubmit={async event => {
+    event.preventDefault()
+    if (!note.trim()) return
+    setBusy(true)
+    await onSend(note.trim())
+    setBusy(false); setOpen(false)
+  }}>
+    <Field label={prompt} hint={hint}><textarea value={note} onChange={event => setNote(event.target.value)} rows={2} maxLength={3000} required autoFocus /></Field>
+    <div className="btn-row">
+      <button className="btn btn-sm" type="submit" disabled={busy || !note.trim()}>{busy ? 'Saving…' : submit}</button>
+      <button className="btn btn-sm btn-outline" type="button" onClick={() => setOpen(false)}>Cancel</button>
+    </div>
+  </form>
 }
 
 export function Pagination({ page, pageSize, total, onChange, label, disabled = false }: {
@@ -157,7 +181,7 @@ export function ApplicationTracker({ stage, status, compact = false }: {
   const decided = status === 'approved' || status === 'rejected' || stage === 'approved' || stage === 'rejected'
   const approved = status === 'approved' || stage === 'approved'
   const current = decided ? 3 : stage === 'for_interview' || stage === 'additional_requirements' ? 2 : 1
-  const labels = TRACK_STEPS.map((step, i) => i === 3 && decided ? (approved ? 'Approved' : 'Not approved') : step)
+  const labels = TRACK_STEPS.map((step, i) => i === 3 && decided ? (approved ? 'Approved' : 'Declined') : step)
   if (compact) {
     return <span className="tracker-compact" aria-label={`Step ${current + 1} of 4: ${labels[current]}`}>
       {labels.map((label, i) => <span key={label} className={'tracker-dot' + (decided && i === 3 && !approved ? ' declined'
@@ -211,7 +235,7 @@ export function useToasts() {
   function push(text: string, kind = 'ok') {
     const id = toastSeq++
     setToasts(t => [...t.slice(-2), { id, kind, text }])
-    setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 4200)
+    setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 8000)
   }
   return { toasts, push, ok: (t: string) => push(t, 'ok'), bad: (t: string) => push(t, 'bad') }
 }
@@ -371,7 +395,9 @@ export function Shell({
   tabs?: TabItem[]
   inboxCount?: number
 }) {
-  const office = nav.some(item => item.to === '/office')
+  const office = nav.some(item => item.to.startsWith('/office'))
+  // A refused page sends the person home with the reason.
+  const denied = (useLocation().state as { denied?: string } | null)?.denied
   return (
     <CivicFrame
       variant={office ? 'office' : 'user'}
@@ -387,6 +413,7 @@ export function Shell({
         <span>{roleLabel}</span>
         {extra ? <span className="role-description">{extra}</span> : null}
       </div> : null}
+      {denied ? <div role="alert"><Notice kind="warn">{denied}</Notice></div> : null}
       {children}
     </CivicFrame>
   )

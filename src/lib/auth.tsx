@@ -151,12 +151,12 @@ export function RequireAuth({ children, roles, allowUnverified = false, allowMfa
     return (
       <div className="card" style={{ margin: '2rem auto', maxWidth: '28rem' }}>
         <h1>Account disabled</h1>
-        <p className="sub">CAVD has disabled this account. Sign in with a different email or contact the registry desk.</p>
+        <p className="sub">CAVD has disabled this account. Log in with a different email or contact CAVD.</p>
       </div>
     )
   }
   if (roles && !roles.includes(profile.role)) {
-    return <Navigate to={homeFor(profile.role)} replace />
+    return <Navigate to={homeFor(profile.role)} replace state={{ denied: 'You don’t have access to that page.' }} />
   }
   if (profile.role === 'cavd' && !allowMfaSetup && requiresCavdMfa(session) && !hasCavdMfa(session)) {
     return <Navigate to="/office/mfa" replace />

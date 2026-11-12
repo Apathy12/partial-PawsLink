@@ -56,7 +56,7 @@ export function MatchTraitsEditor({ petId, onSaved }: { petId: string; onSaved: 
 
   return <div className="card match-traits-card">
     <h2>Adopter matching traits</h2>
-    <p className="sub">Record observed behavior and care needs. A pet needs these traits to receive a match score. Only CAVD staff can edit them.</p>
+    <p className="sub">Record observed behavior and care needs. A pet needs these traits to receive a match score.</p>
     {loading ? <p role="status">Loading traits…</p> : null}
     {error ? <Notice kind="bad">{error}</Notice> : null}
     {!loading ? <form key={traits?.updated_at || 'new'} onSubmit={event => void save(event)}>
