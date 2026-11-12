@@ -790,6 +790,27 @@ export function OfficePet() {
               </div>)}
             </li>)}</ul>
           </div> : null}
+          <form className="card pet-details-form" key={pet.id + pet.updated_at} onSubmit={savePetDetails}>
+            <h2>Edit pet details</h2>
+            <div className="grid pet-details-grid">
+              <Field label="Name"><input name="name" required defaultValue={pet.name} /></Field>
+              <Field label="Species"><select name="species" defaultValue={pet.species}><option value="dog">Dog</option><option value="cat">Cat</option><option value="other">Other</option></select></Field>
+              <Field label="Breed"><input name="breed" defaultValue={pet.breed || ''} /></Field>
+              <Field label="Sex"><select name="sex" defaultValue={pet.sex}><option value="male">Male</option><option value="female">Female</option></select></Field>
+              <Field label="Size"><select name="size" defaultValue={pet.size}><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select></Field>
+              <Field label="Birth date"><input type="date" name="birth_date" required max={new Date().toISOString().slice(0, 10)} defaultValue={pet.birth_date} /></Field>
+              <Field label="Current weight (kg)"><input type="number" name="weight_kg" min="0.01" max="500" step="0.01" defaultValue={pet.weight_kg ?? ''} /></Field>
+              <Field label="Color"><input name="color" defaultValue={pet.color || ''} /></Field>
+              <Field label="Markings"><input name="markings" defaultValue={pet.markings || ''} /></Field>
+              <Field label={pet.photo_url ? 'Replace pet photo' : 'Add a pet photo'}><input type="file" name="photo" accept="image/jpeg,image/png,image/webp" /></Field>
+            </div>
+            <div className="pet-form-tail">
+              <Field label="About this pet"><textarea name="about" defaultValue={pet.about || ''} /></Field>
+              <div className="pet-form-actions">
+                <button className="btn btn-outline" type="submit" disabled={detailsBusy}>{detailsBusy ? 'Saving…' : 'Save pet details'}</button>
+              </div>
+            </div>
+          </form>
         </div>
         <div>
           {approved ? <>
@@ -822,27 +843,6 @@ export function OfficePet() {
           </form>
         </div>
       </div>
-      <form className="card form-panel pet-details-form" key={pet.id + pet.updated_at} onSubmit={savePetDetails}>
-        <h2>Edit pet details</h2>
-        <div className="grid pet-details-grid">
-          <Field label="Name"><input name="name" required defaultValue={pet.name} /></Field>
-          <Field label="Species"><select name="species" defaultValue={pet.species}><option value="dog">Dog</option><option value="cat">Cat</option><option value="other">Other</option></select></Field>
-          <Field label="Breed"><input name="breed" defaultValue={pet.breed || ''} /></Field>
-          <Field label="Sex"><select name="sex" defaultValue={pet.sex}><option value="male">Male</option><option value="female">Female</option></select></Field>
-          <Field label="Size"><select name="size" defaultValue={pet.size}><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select></Field>
-          <Field label="Birth date"><input type="date" name="birth_date" required max={new Date().toISOString().slice(0, 10)} defaultValue={pet.birth_date} /></Field>
-          <Field label="Current weight (kg)"><input type="number" name="weight_kg" min="0.01" max="500" step="0.01" defaultValue={pet.weight_kg ?? ''} /></Field>
-          <Field label="Color"><input name="color" defaultValue={pet.color || ''} /></Field>
-          <Field label="Markings"><input name="markings" defaultValue={pet.markings || ''} /></Field>
-          <Field label={pet.photo_url ? 'Replace pet photo' : 'Add a pet photo'}><input type="file" name="photo" accept="image/jpeg,image/png,image/webp" /></Field>
-        </div>
-        <div className="pet-form-tail">
-          <Field label="About this pet"><textarea name="about" defaultValue={pet.about || ''} /></Field>
-          <div className="pet-form-actions">
-            <button className="btn btn-outline" type="submit" disabled={detailsBusy}>{detailsBusy ? 'Saving…' : 'Save pet details'}</button>
-          </div>
-        </div>
-      </form>
     </OfficeShell>
   )
 }

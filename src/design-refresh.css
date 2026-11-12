@@ -601,3 +601,9 @@ label.field:has(:required) > .lbl::after { content: ' *'; color: var(--danger); 
   .site-user.has-tabbar .brand-copy { display: grid; }
   .profile-logout { display: flex; justify-content: center; width: 100%; margin-top: 8px; }
 }
+/* Pet record pages: photo on the left, details beside it. */
+@media (min-width: 761px) {
+  .record-main { display: grid; grid-template-columns: minmax(0, 280px) minmax(0, 1fr); column-gap: 32px; align-items: start; }
+  .record-main > .record-photo { grid-row: 1 / span 8; margin-bottom: 0; }
+  .record-main > :not(.record-photo) { grid-column: 2; }
+}

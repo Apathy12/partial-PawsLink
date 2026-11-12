@@ -123,7 +123,9 @@ export function OfficeAdoptionRules() {
       if (!active) return
       if (setting.error || revisions.error || !validMatchWeights(setting.data?.weights)) throw new Error(eligibilitySetupMessage)
       setReport(rows); setVersion(setting.data.version); setConfirmedWeights(setting.data.cavd_confirmed)
-      setWeights(Object.fromEntries(MATCH_CRITERIA.map(key => [key, String(setting.data.weights[key])])))
+      const shown = MATCH_CRITERIA.map(key => Math.round(setting.data.weights[key] * 10000) / 10000)
+      shown[shown.length - 1] = Math.round((1 - shown.slice(0, -1).reduce((sum, value) => sum + value, 0)) * 10000) / 10000
+      setWeights(Object.fromEntries(MATCH_CRITERIA.map((key, index) => [key, String(shown[index])])))
       setHistory(revisions.data || []); setReady(true); setLoading(false)
     })().catch(cause => { if (active) { setError(explain(cause)); setLoading(false) } })
     return () => { active = false }

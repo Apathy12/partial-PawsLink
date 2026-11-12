@@ -264,16 +264,15 @@ export function UserPetDetail() {
           {ownerAnswered(pet) ? <div>You updated the details on {fmtDate(pet.updated_at)}. CAVD will review them again.</div> : null}</Notice>
           : pet.registry_status === 'pending' ? <Notice kind="warn">Waiting for CAVD approval. The public record opens once approved.</Notice> : null}
       </div>
-      {pet.registry_status === 'pending' ? <details className="card form-panel pet-correction" open={requested}>
-        <summary>{requested ? 'Complete pet details' : 'Edit pet details'}</summary>
-        <form key={pet.updated_at} onSubmit={saveDetails}>
-          <PetFields pet={pet} />
-          <button className="btn" type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save and send to CAVD'}</button>
-        </form>
-      </details> : null}
-
       <div className="split">
         <div>
+          {pet.registry_status === 'pending' ? <details className="card pet-correction" open={requested}>
+            <summary>{requested ? 'Complete pet details' : 'Edit pet details'}</summary>
+            <form key={pet.updated_at} onSubmit={saveDetails}>
+              <PetFields pet={pet} />
+              <button className="btn" type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save and send to CAVD'}</button>
+            </form>
+          </details> : null}
           <div className="card">
             <h2>Visit history</h2>
             <VisitHistory visits={visits} petName={pet.name} />

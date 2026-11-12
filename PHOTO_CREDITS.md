@@ -15,7 +15,12 @@ converted to WebP for the site. Replace them with CAVD's own photos when those a
 | `demo-pets/milo.webp` | Orange cat, Parañaque | Caise Justin Tan | [Unsplash License](https://unsplash.com/license) | https://unsplash.com/photos/an-orange-cat-sits-among-lush-green-leaves-RQ8SaKmTjqM |
 | `demo-pets/coco.webp` | Black cat, Vertis North, Quezon City | Aerous | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) (cropped; this adaptation is shared under the same license) | https://commons.wikimedia.org/wiki/File:A_black_cat_in_Vertis_North.jpg |
 | `demo-pets/pepper.webp` | Aspin, UP Diliman, Quezon City | Beth Macdonald | [Unsplash License](https://unsplash.com/license) | https://unsplash.com/photos/white-and-brown-short-coated-dog-lrsPA8ozne8 |
+| `demo-pets/basil.webp` | Askal puppy (Jan. 2021) | Judgefloro | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) (cropped) | https://commons.wikimedia.org/wiki/File:0927Close_up_photographs_of_Askal_puppies_of_the_Philippines_11.jpg |
+| `demo-pets/echo.webp` | White and tabby kitten (Mar. 2022) | Obandoeño12345 | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) (cropped; this adaptation is shared under the same license) | https://commons.wikimedia.org/wiki/File:Black_and_white_kitten_portraits_in_the_Philippines_02.jpg |
+| `demo-pets/fern.webp` | Gray tabby and white kitten at a market stall (Dec. 2020) | Judgefloro | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) (cropped) | https://commons.wikimedia.org/wiki/File:9568Black_and_white_kitten_portraits_in_the_Philippines_18.jpg |
+| `demo-pets/juniper.webp` | Tabby kitten, Rizal Park, Manila (Feb. 2009) | Kenny Louie | [CC BY 2.0](https://creativecommons.org/licenses/by/2.0/) (cropped) | https://commons.wikimedia.org/wiki/File:Kitten_in_Rizal_Park,_Manila.jpg |
+| `demo-pets/kiko.webp` | Black kitten (Oct. 2016) | Judgefloro | Public domain (cropped) | https://commons.wikimedia.org/wiki/File:09307jfCats_in_the_Philippines_Kittensfvf_04.jpg |
 
-The Unsplash License allows free use without attribution; credit is given here anyway. The two
-CC BY-SA 4.0 photos require this attribution. The demo pet photos illustrate the labeled "(demo)"
+The Unsplash License, CC0 and public domain photos need no attribution; credit is given here anyway.
+The CC BY-SA 4.0 and CC BY 2.0 photos require this attribution. The demo pet photos illustrate the labeled "(demo)"
 listings and are not photos of real adoptable animals.
