@@ -607,3 +607,17 @@ label.field:has(:required) > .lbl::after { content: ' *'; color: var(--danger); 
   .record-main > .record-photo { grid-row: 1 / span 8; margin-bottom: 0; }
   .record-main > :not(.record-photo) { grid-column: 2; }
 }
+
+/* ---- Owner pet page: visit history as stacked cards on phones, no sideways swipe ---- */
+.pet-visits > summary { font: 600 22px/1.3 var(--font-title); }
+.pet-visits[open] > summary { margin-bottom: 20px; }
+@media (max-width: 600px) {
+  .pet-visits .table-wrap { border: 0; border-radius: 0; background: none; overflow: visible; }
+  .pet-visits .table-wrap::before, .pet-visits .visit-history-table thead { display: none; }
+  .pet-visits .visit-history-table, .pet-visits .visit-history-table tbody { display: block; min-width: 0; background: none; }
+  .pet-visits .visit-history-table tr { display: block; padding: 14px 16px; margin-bottom: 12px; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); }
+  .pet-visits .visit-history-table td { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border: 0; width: auto; max-width: none; text-align: right; white-space: normal; }
+  .pet-visits .visit-history-table td::before { content: attr(data-label); color: var(--ink-muted); font-weight: 600; text-align: left; }
+  .pet-visits .visit-history-table td[colspan] { display: block; text-align: left; }
+  .pet-visits .visit-record-table th[scope='row'] { min-width: 0; }
+}

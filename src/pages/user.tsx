@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { EducationHome } from './education'
+import { PublicRecordFacts } from './public'
 import { useInbox } from './inbox'
 import { explain, supabase } from '../lib/supabase'
 import { useSavedListings } from '../lib/saved-listings'
@@ -13,7 +14,7 @@ import { applicationActionLabel, applicationPath, stageLabel } from '../lib/adop
 import { uploadPetPhoto } from '../lib/photos'
 import { VisitHistory } from '../lib/visits'
 import { ageLabel, fmtDate, petLine, sexLabel, sourceLabel, speciesLabel } from '../lib/format'
-import type { AdoptionRecord, Application, Listing, Pet, PublicListing, Visit } from '../lib/types'
+import type { AdoptionRecord, Application, Listing, Pet, PublicListing, PublicPet, Visit } from '../lib/types'
 import {
   ApplicationTracker, CardSkeletons, Empty, Field, ListingCard, Notice, Pagination, PetCode, Photo, Pill, SaveListingButton, Shell,
   listingPill, originBadge, registryPill, useToasts, ToastHost
@@ -205,6 +206,14 @@ export function UserPetDetail() {
 
   useEffect(() => { load() }, [load])
 
+  // Show the owner exactly what the public record shows.
+  const [publicPet, setPublicPet] = useState<PublicPet | null>(null)
+  useEffect(() => {
+    if (pet?.registry_status !== 'approved') return
+    supabase.from('public_pets').select('*').eq('qr_slug', pet.qr_slug).maybeSingle()
+      .then(({ data }) => setPublicPet(data as PublicPet | null))
+  }, [pet])
+
   async function requestListing(e: FormEvent) {
     e.preventDefault()
     if (!pet || !profile) return
@@ -264,66 +273,60 @@ export function UserPetDetail() {
           {ownerAnswered(pet) ? <div>You updated the details on {fmtDate(pet.updated_at)}. CAVD will review them again.</div> : null}</Notice>
           : pet.registry_status === 'pending' ? <Notice kind="warn">Waiting for CAVD approval. The public record opens once approved.</Notice> : null}
       </div>
-      <div className="split">
-        <div>
-          {pet.registry_status === 'pending' ? <details className="card pet-correction" open={requested}>
-            <summary>{requested ? 'Complete pet details' : 'Edit pet details'}</summary>
-            <form key={pet.updated_at} onSubmit={saveDetails}>
-              <PetFields pet={pet} />
-              <button className="btn" type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save and send to CAVD'}</button>
-            </form>
-          </details> : null}
-          <div className="card">
-            <h2>Visit history</h2>
-            <VisitHistory visits={visits} petName={pet.name} />
-          </div>
-          {transfers.length ? <div className="card"><h2>Adoption record</h2>
-            <p className="sub">CAVD recorded {transfers.length} ownership transfer{transfers.length === 1 ? '' : 's'} for this pet. Its veterinary history remains with the pet.</p>
-            <ul className="timeline">{transfers.map(transfer => <li key={transfer.id}>
-              <strong>{fmtDate(transfer.approved_at)}</strong> · {transfer.pet_snapshot.name}
-              <div className="sub">CAVD validation: {transfer.validation_method === 'cavd_visit' ? 'Visit' : 'Owner / caretaker conversation'}</div>
-              <div className="sub">Validated {fmtDate(transfer.validation_date)}</div>
-              <div className="sub">Last recorded pet visit before adoption: {transfer.last_visit_on ? fmtDate(transfer.last_visit_on) : 'None'}</div>
-            </li>)}</ul>
-          </div> : null}
-
-          {pet.registry_status === 'approved' && !listing ? (
-            <form className="card" onSubmit={requestListing}>
-              <h2>Request an adoption listing</h2>
-              <p className="sub">Adopters see the listing only after CAVD approves it.</p>
-              <Field label="Why this pet needs a home" hint="This text becomes public. Do not include contact details or a home address.">
-                <textarea value={notes} onChange={e => setNotes(e.target.value)} required />
-              </Field>
-              <button className="btn btn-outline" type="submit" disabled={busy}>Send request to CAVD</button>
-            </form>
-          ) : null}
-          {listing?.status === 'pending' ? <Notice kind="warn">Listing request sent. Waiting for CAVD approval.</Notice> : null}
-          {listing?.status === 'approved' && eligibilityReasons(pet, adoptionChecks, visits[0]?.clearance_status).length ? <Notice kind="warn">The listing is approved, but the pet is hidden from adoption until CAVD completes its eligibility review.</Notice> : null}
-        </div>
-        <div>
-          {pet.registry_status === 'approved' ? (
-            <div className="card">
-              <h2>Public pet record</h2>
-              <p className="sub">The public record shows approved details only.</p>
-              <Link className="btn btn-outline" to={'/p/' + pet.qr_slug}>Open public record</Link>
-            </div>
-          ) : (
-            <div className="card"><h2>Public pet record</h2><p className="sub">Opens after CAVD approves this registration.</p></div>
-          )}
-          <div className="card">
-            <h2>Pet details</h2>
-            <dl className="kv">
-              <dt>Birth date</dt><dd>{fmtDate(pet.birth_date)}</dd>
-              <dt>Weight</dt><dd>{pet.weight_kg ? `${pet.weight_kg} kg` : 'Not recorded'}</dd>
-              <dt>Color</dt><dd>{pet.color || 'Not recorded'}</dd>
-              <dt>Markings</dt><dd>{pet.markings || 'Not recorded'}</dd>
-              <dt>Rabies</dt><dd>{pet.rabies_vaccinated ? `Yes, ${fmtDate(pet.rabies_vaccinated_on)}` : 'Not marked by CAVD'}</dd>
-              <dt>Sterilized</dt><dd>{pet.sterilized ? 'Yes' : 'No'}</dd>
-              <dt>Custody</dt><dd>{sourceLabel(pet.source)}</dd>
-            </dl>
-          </div>
+      <div className="grid grid-2">
+        {pet.registry_status === 'approved' ? <div className="card">
+          <h2>Public pet record</h2>
+          <p className="sub">This is what anyone sees when they scan {pet.name}’s code.</p>
+          {publicPet ? <PublicRecordFacts pet={publicPet} /> : <p className="sub" role="status">Loading public record…</p>}
+        </div> : <div className="card"><h2>Public pet record</h2><p className="sub">Opens after CAVD approves this registration.</p></div>}
+        <div className="card">
+          <h2>Pet details</h2>
+          <dl className="kv">
+            <dt>Birth date</dt><dd>{fmtDate(pet.birth_date)}</dd>
+            <dt>Weight</dt><dd>{pet.weight_kg ? `${pet.weight_kg} kg` : 'Not recorded'}</dd>
+            <dt>Color</dt><dd>{pet.color || 'Not recorded'}</dd>
+            <dt>Markings</dt><dd>{pet.markings || 'Not recorded'}</dd>
+            <dt>Rabies</dt><dd>{pet.rabies_vaccinated ? `Yes, ${fmtDate(pet.rabies_vaccinated_on)}` : 'Not marked by CAVD'}</dd>
+            <dt>Sterilized</dt><dd>{pet.sterilized ? 'Yes' : 'No'}</dd>
+            <dt>Custody</dt><dd>{sourceLabel(pet.source)}</dd>
+          </dl>
         </div>
       </div>
+      <div>
+        {pet.registry_status === 'pending' ? <details className="card pet-correction" open={requested}>
+          <summary>{requested ? 'Complete pet details' : 'Edit pet details'}</summary>
+          <form key={pet.updated_at} onSubmit={saveDetails}>
+            <PetFields pet={pet} />
+            <button className="btn" type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save and send to CAVD'}</button>
+          </form>
+        </details> : null}
+        {transfers.length ? <div className="card"><h2>Adoption record</h2>
+          <p className="sub">CAVD recorded {transfers.length} ownership transfer{transfers.length === 1 ? '' : 's'} for this pet. Its veterinary history remains with the pet.</p>
+          <ul className="timeline">{transfers.map(transfer => <li key={transfer.id}>
+            <strong>{fmtDate(transfer.approved_at)}</strong> · {transfer.pet_snapshot.name}
+            <div className="sub">CAVD validation: {transfer.validation_method === 'cavd_visit' ? 'Visit' : 'Owner / caretaker conversation'}</div>
+            <div className="sub">Validated {fmtDate(transfer.validation_date)}</div>
+            <div className="sub">Last recorded pet visit before adoption: {transfer.last_visit_on ? fmtDate(transfer.last_visit_on) : 'None'}</div>
+          </li>)}</ul>
+        </div> : null}
+
+        {pet.registry_status === 'approved' && !listing ? (
+          <form className="card" onSubmit={requestListing}>
+            <h2>Request an adoption listing</h2>
+            <p className="sub">Adopters see the listing only after CAVD approves it.</p>
+            <Field label="Why this pet needs a home" hint="This text becomes public. Do not include contact details or a home address.">
+              <textarea value={notes} onChange={e => setNotes(e.target.value)} required />
+            </Field>
+            <button className="btn btn-outline" type="submit" disabled={busy}>Send request to CAVD</button>
+          </form>
+        ) : null}
+        {listing?.status === 'pending' ? <Notice kind="warn">Listing request sent. Waiting for CAVD approval.</Notice> : null}
+        {listing?.status === 'approved' && eligibilityReasons(pet, adoptionChecks, visits[0]?.clearance_status).length ? <Notice kind="warn">The listing is approved, but the pet is hidden from adoption until CAVD completes its eligibility review.</Notice> : null}
+      </div>
+      <details className="card pet-correction pet-visits">
+        <summary>Visit history and full visit record ({visits.length})</summary>
+        <VisitHistory visits={visits} petName={pet.name} />
+      </details>
     </UserShell>
   )
 }

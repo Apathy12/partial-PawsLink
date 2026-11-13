@@ -290,14 +290,14 @@ export function VisitHistory({ visits, onCorrectSummary, onCorrectClearance, pet
       <caption className="sr-only">Past veterinary visits</caption>
       <thead><tr><th scope="col">Date</th><th scope="col">Visit</th><th scope="col">Document</th><th scope="col">Clinic</th><th scope="col">Summary</th><th scope="col">Clearance</th><th scope="col">Record status</th><th scope="col">Details</th></tr></thead>
       <tbody>{visits.map(visit => <tr className={selected.id === visit.id ? 'visit-row-selected' : undefined} key={visit.id}>
-        <td><time dateTime={visit.visit_date}>{fmtDate(visit.visit_date)}</time></td>
-        <td>{visitKinds[visit.visit_type] || 'Visit'}</td>
-        <td>{visit.evidence_path ? <button className="btn btn-sm btn-outline" type="button" aria-label={`View supporting document for the ${fmtDate(visit.visit_date)} visit`} onClick={() => void openDocument(visit.evidence_path!)}>View</button> : <span className="sub">None</span>}</td>
-        <td>{visit.clinic_name}</td>
-        <td className="visit-summary-cell">{visit.summary.length > 110 ? `${visit.summary.slice(0, 107)}…` : visit.summary}</td>
-        <td>{clearancePill(visit.clearance_status)}</td>
-        <td><Pill kind={visit.verification_status === 'legacy_summary' ? 'wait' : 'ok'}>{recordStatus(visit)}</Pill></td>
-        <td><button className="btn btn-sm btn-outline visit-select-button" type="button" aria-pressed={selected.id === visit.id} onClick={() => { setSelectedId(visit.id); setDocumentError(null) }}>{selected.id === visit.id ? 'Viewing record' : 'View record'}</button></td>
+        <td data-label="Date"><time dateTime={visit.visit_date}>{fmtDate(visit.visit_date)}</time></td>
+        <td data-label="Visit">{visitKinds[visit.visit_type] || 'Visit'}</td>
+        <td data-label="Document">{visit.evidence_path ? <button className="btn btn-sm btn-outline" type="button" aria-label={`View supporting document for the ${fmtDate(visit.visit_date)} visit`} onClick={() => void openDocument(visit.evidence_path!)}>View</button> : <span className="sub">None</span>}</td>
+        <td data-label="Clinic">{visit.clinic_name}</td>
+        <td data-label="Summary" className="visit-summary-cell">{visit.summary.length > 110 ? `${visit.summary.slice(0, 107)}…` : visit.summary}</td>
+        <td data-label="Clearance">{clearancePill(visit.clearance_status)}</td>
+        <td data-label="Record status"><Pill kind={visit.verification_status === 'legacy_summary' ? 'wait' : 'ok'}>{recordStatus(visit)}</Pill></td>
+        <td data-label="Details"><button className="btn btn-sm btn-outline visit-select-button" type="button" aria-pressed={selected.id === visit.id} onClick={() => { setSelectedId(visit.id); setDocumentError(null) }}>{selected.id === visit.id ? 'Viewing record' : 'View record'}</button></td>
       </tr>)}</tbody>
     </table></div>
 

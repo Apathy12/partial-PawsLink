@@ -284,6 +284,23 @@ export function CheckEmailPage() {
   )
 }
 
+// The owner's pet page shows this same block, so the two never drift apart.
+export function PublicRecordFacts({ pet }: { pet: PublicPet }) {
+  return <>
+    <Notice kind="ok"><b>Verified CAVD registry record</b></Notice>
+    <dl className="kv">
+      <dt>Species</dt><dd>{speciesLabel(pet.species)}</dd>
+      <dt>Breed</dt><dd>{pet.breed || '—'}</dd>
+      <dt>Sex</dt><dd>{sexLabel(pet.sex)}</dd>
+      <dt>Age</dt><dd>{ageLabel(pet.birth_date)}</dd>
+      <dt>Size</dt><dd>{sizeLabel(pet.size)}</dd>
+      <dt>Sterilized</dt><dd>{pet.sterilized ? 'Yes' : 'No'}</dd>
+      <dt>Rabies</dt><dd>{pet.rabies_vaccinated ? `Vaccinated${pet.rabies_vaccinated_on ? ' ' + fmtDate(pet.rabies_vaccinated_on) : ''}` : 'Not marked by CAVD'}</dd>
+      <dt>Listing status</dt><dd>{pet.is_listed ? 'Listing approved' : 'Not listed for adoption'}</dd>
+    </dl>
+  </>
+}
+
 export function PublicPetPage() {
   const { slug } = useParams()
   const { profile, loading } = useAuth()
@@ -329,17 +346,7 @@ export function PublicPetPage() {
         <div className="split">
           <div className="record-main">
               <div className="record-photo pet-photo"><Photo url={pet.photo_url} name={pet.name} /></div>
-              <Notice kind="ok"><b>Verified CAVD registry record</b></Notice>
-              <dl className="kv">
-                <dt>Species</dt><dd>{speciesLabel(pet.species)}</dd>
-                <dt>Breed</dt><dd>{pet.breed || '—'}</dd>
-                <dt>Sex</dt><dd>{sexLabel(pet.sex)}</dd>
-                <dt>Age</dt><dd>{ageLabel(pet.birth_date)}</dd>
-                <dt>Size</dt><dd>{sizeLabel(pet.size)}</dd>
-                <dt>Sterilized</dt><dd>{pet.sterilized ? 'Yes' : 'No'}</dd>
-                <dt>Rabies</dt><dd>{pet.rabies_vaccinated ? `Vaccinated${pet.rabies_vaccinated_on ? ' ' + fmtDate(pet.rabies_vaccinated_on) : ''}` : 'Not marked by CAVD'}</dd>
-                <dt>Listing status</dt><dd>{pet.is_listed ? 'Listing approved' : 'Not listed for adoption'}</dd>
-              </dl>
+              <PublicRecordFacts pet={pet} />
           </div>
           <aside className="record-aside">
             {pet.is_listed && pet.listing_id ? <>
