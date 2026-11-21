@@ -112,14 +112,14 @@ export function NoteAction({ label, prompt, hint, initial = '', submit = 'Send',
   </form>
 }
 
-export function Pagination({ page, pageSize, total, onChange, label, disabled = false }: {
-  page: number; pageSize: number; total: number; onChange: (page: number) => void; label: string; disabled?: boolean
+export function Pagination({ page, pageSize, total, onChange, label, disabled = false, noun = 'pet' }: {
+  page: number; pageSize: number; total: number; onChange: (page: number) => void; label: string; disabled?: boolean; noun?: string
 }) {
   if (!total) return null
   const pages = Math.ceil(total / pageSize)
   return <nav className="pagination-row registry-pagination" aria-label={`${label} pages`}>
     <button className="btn btn-sm btn-outline" type="button" disabled={disabled || page === 0} onClick={() => onChange(page - 1)}>Previous</button>
-    <span className="sub" aria-live="polite">Page {page + 1} of {pages} · {page * pageSize + 1}–{Math.min((page + 1) * pageSize, total)} of {total} pet{total === 1 ? '' : 's'}</span>
+    <span className="sub" aria-live="polite">Page {page + 1} of {pages} · {page * pageSize + 1}–{Math.min((page + 1) * pageSize, total)} of {total} {noun}{total === 1 ? '' : 's'}</span>
     <button className="btn btn-sm btn-outline" type="button" disabled={disabled || page + 1 >= pages} onClick={() => onChange(page + 1)}>Next</button>
   </nav>
 }

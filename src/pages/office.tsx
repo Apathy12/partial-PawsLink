@@ -13,6 +13,7 @@ import { stageLabel } from '../lib/adoption-application'
 import { useNames } from '../lib/staff'
 import { capitalize, fmtDate, petLine, sourceLabel, manilaDay } from '../lib/format'
 import { fetchRegistryPage, REGISTRY_PAGE_SIZE } from '../lib/pet-registry'
+import { PAGE_SIZE, usePagedRows } from '../lib/paging'
 import type { AdoptionRecord, Application, Listing, Pet, Profile, Visit, VisitCorrection } from '../lib/types'
 import {
   DashboardWelcome, Empty, Field, NoteAction, Notice, Pagination, PetCode, Photo, Pill, Shell, ToastHost, appPill, discoveryPill,
@@ -257,24 +258,20 @@ export function OfficeRegistrations() {
   )
 }
 
+type ListingRow = Listing & { pet?: Pet }
+// One page of listings with each pet joined in the same request, instead of loading every pet.
+function listingPage(status: Listing['status'], from: number, to: number) {
+  return supabase.from('listings').select('*, pet:pets(*)', { count: 'exact' }).eq('status', status)
+    .order('created_at', { ascending: false }).order('id').range(from, to)
+}
+
 export function OfficeListings() {
   const { counts, refresh } = useCounts()
   const { ok, bad, toasts } = useToasts()
   const eligibility = useEligibilityReport()
-  const [pending, setPending] = useState<(Listing & { pet?: Pet })[]>([])
-  const [live, setLive] = useState<(Listing & { pet?: Pet })[]>([])
-
-  const load = useCallback(async () => {
-    const { data } = await supabase.from('listings').select('*').order('created_at', { ascending: false })
-    const all = (data || []) as Listing[]
-    const { data: pets } = await supabase.from('pets').select('*')
-    const map = new Map(((pets || []) as Pet[]).map(p => [p.id, p]))
-    const joined = all.map(l => ({ ...l, pet: map.get(l.pet_id) }))
-    setPending(joined.filter(l => l.status === 'pending'))
-    setLive(joined.filter(l => l.status === 'approved'))
-    refresh()
-  }, [refresh])
-  useEffect(() => { void load() }, [load])
+  const pending = usePagedRows<ListingRow>(useCallback((from: number, to: number) => listingPage('pending', from, to), []))
+  const live = usePagedRows<ListingRow>(useCallback((from: number, to: number) => listingPage('approved', from, to), []))
+  const load = () => { pending.reload(); live.reload(); refresh() }
 
   async function decide(l: Listing, status: 'approved' | 'rejected' | 'closed', note: string | null = null) {
     if (status === 'approved' && !eligibility.report?.find(row => row.pet_id === l.pet_id)?.eligible) {
@@ -296,12 +293,13 @@ export function OfficeListings() {
       {eligibility.error ? <Notice kind="bad">{eligibility.error}</Notice> : null}
       <div className="card">
         <h2>Pending listings</h2>
-        {pending.length === 0 ? <Empty>No listing requests waiting.</Empty> : (
+        {pending.error ? <Notice kind="bad">Could not load listings: {pending.error}</Notice> : null}
+        {pending.loading ? <p role="status">Loading listings…</p> : pending.rows.length === 0 ? <Empty>No listing requests waiting.</Empty> : (
           <div className="table-wrap">
             <table className="tbl">
               <thead><tr><th>Pet</th><th>Custody</th><th>Notes</th><th>Actions</th></tr></thead>
               <tbody>
-                {pending.map(l => (
+                {pending.rows.map(l => (
                   <tr key={l.id}>
                     <td><div className="table-pet"><div className="avatar"><Photo url={l.pet?.photo_url} name={l.pet?.name || 'Pet'} /></div><Link to={'/office/pets/' + l.pet_id}>{l.pet?.name}</Link></div></td>
                     <td>{l.pet ? sourcePill(l.pet.source) : '—'}</td>
@@ -317,15 +315,17 @@ export function OfficeListings() {
             </table>
           </div>
         )}
+        <Pagination label="Pending listings" noun="listing" page={pending.page} pageSize={PAGE_SIZE} total={pending.total} onChange={pending.setPage} />
       </div>
       <div className="card">
         <h2>Approved listings</h2>
-        {live.length === 0 ? <Empty>None published.</Empty> : (
+        {live.error ? <Notice kind="bad">Could not load listings: {live.error}</Notice> : null}
+        {live.loading ? <p role="status">Loading listings…</p> : live.rows.length === 0 ? <Empty>None published.</Empty> : (
           <div className="table-wrap">
             <table className="tbl">
               <thead><tr><th>Pet</th><th>Custody</th><th>Approved</th><th>Actions</th></tr></thead>
               <tbody>
-                {live.map(l => (
+                {live.rows.map(l => (
                   <tr key={l.id}>
                     <td><div className="table-pet"><div className="avatar"><Photo url={l.pet?.photo_url} name={l.pet?.name || 'Pet'} /></div>{l.pet?.name}</div></td>
                     <td>{l.pet ? sourceLabel(l.pet.source) : '—'}</td>
@@ -337,6 +337,7 @@ export function OfficeListings() {
             </table>
           </div>
         )}
+        <Pagination label="Approved listings" noun="listing" page={live.page} pageSize={PAGE_SIZE} total={live.total} onChange={live.setPage} />
       </div>
     </OfficeShell>
   )
@@ -387,33 +388,30 @@ export function CavdTransferControl({ application, onDone, onError }: {
   </form></details>
 }
 
+type ApplicationRow = Application & { pet?: Pet; listing?: Listing; adopter?: Profile; owner?: Profile }
+type ApplicationJoin = Application & { listing: (Listing & { pet: (Pet & { owner: Profile | null }) | null }) | null; adopter: Profile | null }
+// One page of applications with listing, pet, owner and adopter joined in the same request.
+// The !…_fkey hints pick the right link where a table has more than one to profiles.
+function applicationPage(isOpen: boolean, path: string, from: number, to: number) {
+  let request = supabase.from('applications')
+    .select('*, listing:listings(*, pet:pets(*, owner:profiles!pets_owner_id_fkey(*))), adopter:profiles!applications_adopter_id_fkey(*)', { count: 'exact' })
+  request = isOpen ? request.eq('status', 'pending') : request.neq('status', 'pending')
+  if (path !== 'all') request = request.eq('discovery_path', path)
+  return request.order('created_at', { ascending: false }).order('id').range(from, to).then(result => ({
+    ...result,
+    data: ((result.data || []) as ApplicationJoin[]).map((a): ApplicationRow => ({
+      ...a, listing: a.listing || undefined, pet: a.listing?.pet || undefined,
+      adopter: a.adopter || undefined, owner: a.listing?.pet?.owner || undefined
+    }))
+  }))
+}
+
 export function OfficeApplications() {
   const { counts, refresh } = useCounts()
-  const [rows, setRows] = useState<(Application & { pet?: Pet; listing?: Listing; adopter?: Profile; owner?: Profile })[]>([])
   const [path, setPath] = useState('all')
-
-  const load = useCallback(async () => {
-    const { data } = await supabase.from('applications').select('*').order('created_at', { ascending: false })
-    const apps = (data || []) as Application[]
-    const { data: listings } = await supabase.from('listings').select('*')
-    const lmap = new Map(((listings || []) as Listing[]).map(l => [l.id, l]))
-    const { data: pets } = await supabase.from('pets').select('*')
-    const pmap = new Map(((pets || []) as Pet[]).map(p => [p.id, p]))
-    const { data: people } = await supabase.from('profiles').select('*')
-    const umap = new Map(((people || []) as Profile[]).map(u => [u.id, u]))
-    setRows(apps.map(a => {
-      const listing = lmap.get(a.listing_id)
-      const pet = listing ? pmap.get(listing.pet_id) : undefined
-      return { ...a, listing, pet, adopter: umap.get(a.adopter_id),
-        owner: pet?.owner_id ? umap.get(pet.owner_id) : undefined }
-    }))
-    refresh()
-  }, [refresh])
-  useEffect(() => { void load() }, [load])
-
-  const visible = rows.filter(a => path === 'all' || a.discovery_path === path)
-  const open = visible.filter(a => a.status === 'pending')
-  const done = visible.filter(a => a.status !== 'pending')
+  const open = usePagedRows<ApplicationRow>(useCallback((from: number, to: number) => applicationPage(true, path, from, to), [path]))
+  const done = usePagedRows<ApplicationRow>(useCallback((from: number, to: number) => applicationPage(false, path, from, to), [path]))
+  useEffect(() => { refresh() }, [refresh])
 
   return (
     <OfficeShell counts={counts}>
@@ -423,13 +421,14 @@ export function OfficeApplications() {
       </div>
       <form className="filters" onSubmit={e => e.preventDefault()}>
         <Field label="Found through">
-          <select value={path} onChange={e => setPath(e.target.value)}>
+          <select value={path} onChange={e => { setPath(e.target.value); open.setPage(0); done.setPage(0) }}>
             <option value="all">All</option><option value="match">From Find My Match</option><option value="direct">From Direct Adoption</option>
           </select>
         </Field>
       </form>
-      {open.length === 0 ? <Empty>No open applications.</Empty> : <div className="table-wrap"><table className="tbl">
-        <thead><tr><th>Applicant</th><th>Pet</th><th>Found through</th><th>Review stage</th><th>Actions</th></tr></thead><tbody>{open.map(a => (
+      {open.error ? <Notice kind="bad">Could not load applications: {open.error}</Notice> : null}
+      {open.loading ? <p role="status">Loading applications…</p> : open.rows.length === 0 ? <Empty>No open applications.</Empty> : <div className="table-wrap"><table className="tbl">
+        <thead><tr><th>Applicant</th><th>Pet</th><th>Found through</th><th>Review stage</th><th>Actions</th></tr></thead><tbody>{open.rows.map(a => (
         <tr key={a.id}>
           <td>{a.adopter?.name}<div className="sub">{a.adopter?.contact || a.adopter?.id}</div></td>
           <td><div className="table-pet"><div className="avatar"><Photo url={a.pet?.photo_url} name={a.pet?.name || 'Pet'} /></div><div><span className="pet-name">{a.pet?.name}</span><div className="sub">{a.pet?.owner_id ? `Owner: ${a.owner?.name || 'Registered owner'}` : 'CAVD shelter'}</div>{a.owner?.contact ? <div className="sub">{a.owner.contact}</div> : null}{a.pet ? <PetCode code={a.pet.qr_slug} compact /> : null}</div></div></td>
@@ -440,14 +439,16 @@ export function OfficeApplications() {
           </td>
         </tr>
       ))}</tbody></table></div>}
-      {done.length ? (
+      <Pagination label="Open applications" noun="application" page={open.page} pageSize={PAGE_SIZE} total={open.total} onChange={open.setPage} />
+      {done.error ? <Notice kind="bad">Could not load decided applications: {done.error}</Notice> : null}
+      {done.rows.length ? (
         <div className="card">
           <h2>Decision history</h2>
           <div className="table-wrap">
             <table className="tbl">
               <thead><tr><th>Applicant</th><th>Pet</th><th>Found through</th><th>Status</th><th>Note</th><th>Details</th></tr></thead>
               <tbody>
-                {done.map(a => (
+                {done.rows.map(a => (
                   <tr key={a.id}>
                     <td>{a.adopter?.name}</td>
                     <td><div className="table-pet"><div className="avatar"><Photo url={a.pet?.photo_url} name={a.pet?.name || 'Pet'} /></div>{a.pet?.name}</div></td>
@@ -460,6 +461,7 @@ export function OfficeApplications() {
               </tbody>
             </table>
           </div>
+          <Pagination label="Decision history" noun="application" page={done.page} pageSize={PAGE_SIZE} total={done.total} onChange={done.setPage} />
         </div>
       ) : null}
     </OfficeShell>
@@ -858,21 +860,20 @@ export function OfficePet() {
 
 export function OfficeAccounts() {
   const { counts } = useCounts()
-  const [rows, setRows] = useState<Profile[]>([])
   const [search, setSearch] = useState('')
-  const [loadError, setLoadError] = useState<string | null>(null)
-  const load = useCallback(() => {
-    supabase.from('profiles').select('*').order('name')
-      .then(({ data, error }) => {
-        setRows((data || []) as Profile[])
-        setLoadError(error ? explain(error) : null)
-      })
-  }, [])
-  useEffect(() => { load() }, [load])
-
-  const visibleRows = rows.filter(p =>
-    `${p.name} ${p.contact || ''} ${p.role}`
-      .toLowerCase().includes(search.trim().toLowerCase()))
+  const accounts = usePagedRows<Profile>(useCallback((from: number, to: number) => {
+    let request = supabase.from('profiles').select('*', { count: 'exact' }).order('name').order('id')
+    const term = search.trim()
+    if (term) {
+      // Same quoting and wildcard escaping as the registry search.
+      const pattern = JSON.stringify(`%${term.replace(/[\\%_]/g, '\\$&')}%`)
+      const staff = /^(cavd|staff)/i.test(term) ? ',role.eq.cavd' : ''
+      request = request.or(`name.ilike.${pattern},contact.ilike.${pattern}${staff}`)
+    }
+    return request.range(from, to)
+  }, [search]))
+  const visibleRows = accounts.rows
+  const loadError = accounts.error
 
   return (
     <OfficeShell counts={counts}>
@@ -882,7 +883,7 @@ export function OfficeAccounts() {
       </div>
       {loadError ? <div className="notice notice-bad" role="alert">Could not load accounts: {loadError}</div> : null}
       <div className="card">
-        <label className="field office-account-search"><span className="lbl">Find an account</span><input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Name, phone, or role" /></label>
+        <label className="field office-account-search"><span className="lbl">Find an account</span><input type="search" value={search} onChange={event => { setSearch(event.target.value); accounts.setPage(0) }} placeholder="Name, phone, or role" /></label>
         <div className="table-wrap">
           <table className="tbl">
             <thead><tr><th>Name</th><th>Role</th><th>Active</th><th>Profile</th></tr></thead>
@@ -898,7 +899,8 @@ export function OfficeAccounts() {
             </tbody>
           </table>
         </div>
-        {!loadError && visibleRows.length === 0 ? <Empty>{search ? 'No accounts match that search.' : 'No accounts found.'}</Empty> : null}
+        <Pagination label="Accounts" noun="account" page={accounts.page} pageSize={PAGE_SIZE} total={accounts.total} onChange={accounts.setPage} />
+        {!loadError && !accounts.loading && visibleRows.length === 0 ? <Empty>{search ? 'No accounts match that search.' : 'No accounts found.'}</Empty> : null}
       </div>
     </OfficeShell>
   )
