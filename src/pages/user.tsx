@@ -196,7 +196,8 @@ export function UserPetDetail() {
       .then(({ data }) => setPet(data as Pet | null))
     supabase.from('visits').select('*').eq('pet_id', id).order('visit_date', { ascending: false }).order('created_at', { ascending: false })
       .then(({ data }) => setVisits((data || []) as Visit[]))
-    supabase.from('listings').select('*').eq('pet_id', id).in('status', ['pending', 'approved'])
+    // The latest listing, so a rejected or closed request can show CAVD's reason.
+    supabase.from('listings').select('*').eq('pet_id', id).order('created_at', { ascending: false }).limit(1)
       .maybeSingle().then(({ data }) => setListing((data as Listing) ?? null))
     supabase.from('adoption_records').select('*').eq('pet_id', id).order('approved_at', { ascending: false })
       .then(({ data }) => setTransfers((data || []) as AdoptionRecord[]))
@@ -251,6 +252,9 @@ export function UserPetDetail() {
     return <UserShell><Empty>No pet on this account matches that link.</Empty></UserShell>
   }
   const requested = detailsRequested(pet)
+  const live = listing?.status === 'pending' || listing?.status === 'approved' ? listing : null
+  // A listing an earlier owner made is not this owner's to hear about.
+  const endedListing = !live && listing?.listed_by === profile?.id ? listing : null
 
   return (
     <UserShell>
@@ -264,7 +268,7 @@ export function UserPetDetail() {
             <PetCode code={pet.qr_slug} />
             <div className="btn-row" style={{ marginTop: '.4rem' }}>
               {registryPill(pet.registry_status)}
-              {listing ? listingPill(listing.status) : <Pill>Not listed</Pill>}
+              {live ? listingPill(live.status) : <Pill>Not listed</Pill>}
             </div>
           </div>
         </div>
@@ -310,7 +314,11 @@ export function UserPetDetail() {
           </li>)}</ul>
         </div> : null}
 
-        {pet.registry_status === 'approved' && !listing ? (
+        {endedListing ? <Notice kind={endedListing.status === 'rejected' ? 'bad' : 'info'}>
+          {endedListing.status === 'rejected' ? 'CAVD did not approve your last listing request' : 'CAVD closed your last listing'}
+          {endedListing.decision_note ? `: ${endedListing.decision_note}` : '.'} {pet.registry_status === 'approved' ? 'You can send a new request below.' : ''}
+        </Notice> : null}
+        {pet.registry_status === 'approved' && !live ? (
           <form className="card" onSubmit={requestListing}>
             <h2>Request an adoption listing</h2>
             <p className="sub">Adopters see the listing only after CAVD approves it.</p>
@@ -320,8 +328,8 @@ export function UserPetDetail() {
             <button className="btn btn-outline" type="submit" disabled={busy}>Send request to CAVD</button>
           </form>
         ) : null}
-        {listing?.status === 'pending' ? <Notice kind="warn">Listing request sent. Waiting for CAVD approval.</Notice> : null}
-        {listing?.status === 'approved' && eligibilityReasons(pet, adoptionChecks, visits[0]?.clearance_status).length ? <Notice kind="warn">The listing is approved, but the pet is hidden from adoption until CAVD completes its eligibility review.</Notice> : null}
+        {live?.status === 'pending' ? <Notice kind="warn">Listing request sent. Waiting for CAVD approval.</Notice> : null}
+        {live?.status === 'approved' && eligibilityReasons(pet, adoptionChecks, visits[0]?.clearance_status).length ? <Notice kind="warn">The listing is approved, but the pet is hidden from adoption until CAVD completes its eligibility review.</Notice> : null}
       </div>
       <details className="card pet-correction pet-visits">
         <summary>Visit history and full visit record ({visits.length})</summary>

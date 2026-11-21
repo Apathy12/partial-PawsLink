@@ -4,7 +4,7 @@ import { useAuth } from '../lib/auth'
 import { explain, supabase } from '../lib/supabase'
 import { fmtDate, sexLabel, sizeLabel, speciesLabel } from '../lib/format'
 import { detailsRequested, ownerAnswered } from '../lib/pet-registry'
-import type { Application, ApplicationEvent, Listing, Pet, VerificationRequest, Visit } from '../lib/types'
+import type { AdoptionRecord, Application, ApplicationEvent, Listing, Pet, VerificationRequest, Visit } from '../lib/types'
 import { Empty, Notice, Pill } from '../ui'
 import { OfficeShell, useCounts } from './office'
 import { UserShell } from './user'
@@ -50,11 +50,14 @@ function eventTitle(event: ApplicationEvent) {
 }
 
 async function userItems(me: string): Promise<InboxItem[]> {
-  const [pets, apps, ids] = await Promise.all([
+  const [pets, apps, ids, givenAway] = await Promise.all([
     rows<Pet>(supabase.from('pets').select('*').eq('owner_id', me).order('created_at', newest).limit(50)),
     rows<AppRow>(supabase.from('applications').select(APP_COLUMNS).eq('adopter_id', me).order('created_at', newest).limit(50)),
     rows<VerificationRequest>(supabase.from('verification_requests').select('*').eq('user_id', me).neq('status', 'pending')
-      .order('created_at', newest).limit(50))
+      .order('created_at', newest).limit(50)),
+    // A pet that left this account through adoption is no longer in its pets, so the transfer record tells the owner.
+    rows<AdoptionRecord>(supabase.from('adoption_records').select('*').eq('previous_owner_id', me)
+      .order('approved_at', newest).limit(50))
   ])
   const petIds = pets.map(pet => pet.id)
   const [listings, visits, events] = await Promise.all([
@@ -90,6 +93,12 @@ async function userItems(me: string): Promise<InboxItem[]> {
       text: `Application for ${apps.find(app => app.id === event.application_id)?.pet_name_snapshot || 'a pet'}`
         + (event.remarks ? ': ' + brief(event.remarks) : '.'),
       to: '/app/applications/' + event.application_id, action: 'View application'
+    })),
+    ...givenAway.map((record): InboxItem => ({
+      id: 'adopted' + record.id, kind: 'Adoption', date: record.approved_at,
+      title: `${record.pet_snapshot.name} was adopted`,
+      text: `CAVD transferred ${record.pet_snapshot.name} to its new owner on ${fmtDate(record.approved_at)}. The pet now appears in their account.`,
+      to: '/app/pets', action: 'My pets'
     })),
     ...ids.map((request): InboxItem => ({
       id: 'id' + request.id, kind: 'Account', date: request.reviewed_at || request.created_at,

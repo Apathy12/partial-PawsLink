@@ -1998,6 +1998,203 @@ async function main() {
       const r = await asRole('anon', () => client.query('select count(*)::int as n from public.public_pets'));
       if (r.rows[0].n > 0) ok('visitors can still read the public pet list'); else bad('visitors can still read the public pet list', 'no rows');
     } catch (e) { bad('visitors can still read the public pet list', e.message); }
+
+    section('Adoption journey: owner, adopter and CAVD from start to finish');
+    await client.query(await readFile(join(root, 'supabase/migrations/0024_adoption_flow_fixes.sql'), 'utf8'));
+    ok('applied 0024_adoption_flow_fixes.sql');
+    const J = { owner: 'ffffffff-0000-4000-8000-000000000001', adopter: 'ffffffff-0000-4000-8000-000000000002',
+      rival: 'ffffffff-0000-4000-8000-000000000003', fresh: 'ffffffff-0000-4000-8000-000000000004',
+      limit: 'ffffffff-0000-4000-8000-000000000005' };
+    await client.query(`insert into auth.users(id,email,raw_user_meta_data) values
+      ($1,'j-owner@demo.local','{"name":"Journey Owner"}'), ($2,'j-adopter@demo.local','{"name":"Journey Adopter"}'),
+      ($3,'j-rival@demo.local','{"name":"Journey Rival"}'), ($4,'j-fresh@demo.local','{"name":"Journey Unverified"}'),
+      ($5,'j-limit@demo.local','{"name":"Journey Limit"}')`, [J.owner, J.adopter, J.rival, J.fresh, J.limit]);
+    await commitAs(ID.cavd, () => client.query('update public.profiles set verification_exempt = true where id = any($1)',
+      [[J.owner, J.adopter, J.rival, J.limit]]));
+    const run = async (user, sql, params = []) => (await commitAs(user, () => client.query(sql, params))).rows;
+    const today = new Date().toISOString().slice(0, 10);
+    const answersFor = (name, email) => JSON.stringify({ ...applicationAnswers, full_name: name, email });
+    const apply = `select public.submit_adoption_application($1, $2::jsonb, $3) as id`;
+    const listingSql = `insert into public.listings(pet_id,listed_by,status,notes) values($1,$2,'pending','Needs a loving home') returning id`;
+    const traitsSql = `insert into public.pet_match_traits(pet_id,activity_level,temperament,child_compatible,pet_compatible,space_need,time_need,experience_need,updated_by)
+      values($1,3,'calm',true,true,1,1,1,$2)`;
+    // The vet work CAVD does before a pet can be listed: health flags first, because changing them resets the review.
+    const clearForAdoption = async petId => {
+      await run(ID.cavd, `update public.pets set rabies_vaccinated = true, rabies_vaccinated_on = current_date, sterilized = true where id = $1`, [petId]);
+      await run(ID.cavd, addVisit, [petId, ID.cavd, today, 'cleared']);
+      await run(ID.cavd, saveChecks, [petId, 'available', 'current', 'cleared']);
+      await run(ID.cavd, traitsSql, [petId, ID.cavd]);
+    };
+
+    // Owner registers; CAVD approves; owner asks to list.
+    const jPet = (await run(J.owner, `insert into public.pets(owner_id,created_by,source,registry_status,name,species,sex,size,birth_date,breed,color,markings,about,photo_url)
+      values($1,$1,'owner','pending','Journey Dog','dog','male','small','2024-01-01','Aspin','Brown','None','Calm and gentle','https://example.test/j.jpg') returning id`, [J.owner]))[0].id;
+    await denied('owner cannot request a listing before CAVD approves the registration', J.owner, listingSql, [jPet, J.owner], 'row-level security');
+    await run(ID.cavd, `update public.pets set registry_status = 'approved', decided_at = now(), registry_note = null where id = $1`, [jPet]);
+    const jListing = (await run(J.owner, listingSql, [jPet, J.owner]))[0].id;
+    ok('owner can request a listing once the registration is approved');
+    await denied('owner cannot send a second listing request for the same pet', J.owner, listingSql, [jPet, J.owner], 'duplicate key');
+    await noEffect('owner cannot approve their own listing', J.owner, `update public.listings set status = 'approved' where id = $1`, [jListing]);
+    await rows('adopters cannot see a listing still waiting for CAVD', J.adopter,
+      'select listing_id from public.public_listings where listing_id = $1', r => r.length === 0, [jListing]);
+    await denied('adopter cannot apply to a listing still waiting for CAVD', J.adopter, apply,
+      [jListing, answersFor('Journey Adopter', 'j-adopter@demo.local'), 'explore'], 'no longer open');
+    await denied('CAVD cannot publish the listing before the vet and eligibility work', ID.cavd,
+      `update public.listings set status = 'approved', decided_at = now() where id = $1`, [jListing], 'eligibility');
+
+    // CAVD veterinary work, then the listing goes public.
+    await clearForAdoption(jPet);
+    await run(ID.cavd, `update public.listings set status = 'approved', decided_at = now() where id = $1`, [jListing]);
+    await rows('the approved listing is public to adopters', J.adopter,
+      'select listing_id from public.public_listings where listing_id = $1', r => r.length === 1, [jListing]);
+
+    // Who may apply.
+    await denied('owner cannot apply for their own pet, and is told why', J.owner, apply,
+      [jListing, answersFor('Journey Owner', 'j-owner@demo.local'), 'explore'], 'your own pet');
+    await denied('an account without an approved ID cannot apply', J.fresh, apply,
+      [jListing, answersFor('Journey Unverified', 'j-fresh@demo.local'), 'explore'], 'Only verified');
+    await denied('CAVD staff cannot apply to adopt', ID.cavd, apply,
+      [jListing, answersFor('CAVD Office', 'cavd@demo.local'), 'explore'], 'Only verified');
+    await denied('an incomplete application form is refused', J.adopter, apply,
+      [jListing, JSON.stringify({ ...applicationAnswers, reason: ' ' }), 'explore'], 'required application field');
+    await denied('an application from Find My Match needs saved preferences', J.adopter, apply,
+      [jListing, answersFor('Journey Adopter', 'j-adopter@demo.local'), 'match'], 'preferences');
+    const jApp = (await run(J.adopter, apply, [jListing, answersFor('Journey Adopter', 'j-adopter@demo.local'), 'explore']))[0].id;
+    const again = (await run(J.adopter, apply, [jListing, answersFor('Journey Adopter', 'j-adopter@demo.local'), 'explore']))[0].id;
+    if (again === jApp) ok('submitting twice keeps one application'); else bad('submitting twice keeps one application');
+    const rivalApp = (await run(J.rival, apply, [jListing, answersFor('Journey Rival', 'j-rival@demo.local'), 'explore']))[0].id;
+    ok('a second adopter can apply for the same pet');
+    await rows('an adopter cannot read another adopter’s application', J.adopter,
+      'select id from public.applications where id = $1', r => r.length === 0, [rivalApp]);
+    await rows('the current owner does not see who applied', J.owner,
+      'select id from public.applications where listing_id = $1', r => r.length === 0, [jListing]);
+
+    // CAVD review and the adopter's reply.
+    await noEffect('adopter cannot approve their own application', J.adopter,
+      `update public.applications set status = 'approved' where id = $1`, [jApp]);
+    await denied('adopter cannot reply before CAVD asks for something', J.adopter,
+      'select public.respond_to_adoption_application($1, $2)', [jApp, 'Hello'], 'not awaiting');
+    await denied('an interview request needs instructions', ID.cavd,
+      `select public.review_adoption_application($1, 'for_interview', ' ')`, [jApp], 'interview instructions');
+    await run(ID.cavd, `select public.review_adoption_application($1, 'for_interview', 'Visit the office on Friday at 9 AM')`, [jApp]);
+    await run(J.adopter, 'select public.respond_to_adoption_application($1, $2)', [jApp, 'I will be there on Friday.']);
+    await rows('the adopter’s reply is saved with its date', ID.cavd,
+      'select applicant_response, response_date, review_stage from public.applications where id = $1',
+      r => r[0]?.applicant_response === 'I will be there on Friday.' && r[0].response_date !== null && r[0].review_stage === 'for_interview', [jApp]);
+
+    // The pet is put on hold mid-review: nothing can be approved until it is cleared again.
+    const holdVisit = (await run(ID.cavd, addVisit, [jPet, ID.cavd, today, 'hold']))[0].id;
+    await rows('a pet put on hold leaves the public listings', J.adopter,
+      'select listing_id from public.public_listings where listing_id = $1', r => r.length === 0, [jListing]);
+    const transfer = `select public.approve_application($1, $2, $3::date, $4, $5)`;
+    await denied('CAVD cannot transfer a pet that is on hold', ID.cavd, transfer,
+      [jApp, 'owner_conversation', today, 'Journey Owner', 'Confirmed'], 'on hold');
+    await run(ID.cavd, `update public.visits set clearance_status = 'cleared', correction_note = 'Recheck passed' where id = $1`, [holdVisit]);
+    await denied('a transfer needs a validation date that is not in the future', ID.cavd, transfer,
+      [jApp, 'owner_conversation', '2999-01-01', 'Journey Owner', 'Confirmed'], 'validation date');
+    await denied('a transfer needs the person CAVD spoke with', ID.cavd, transfer,
+      [jApp, 'owner_conversation', today, ' ', 'Confirmed'], 'who CAVD spoke');
+    await denied('a transfer needs an outcome note', ID.cavd, transfer,
+      [jApp, 'owner_conversation', today, 'Journey Owner', ' '], 'outcome');
+
+    // The transfer and everything it must change.
+    await run(ID.cavd, transfer, [jApp, 'owner_conversation', today, 'Journey Owner', 'Home visit confirmed']);
+    await rows('the adopter now owns the pet', ID.cavd, 'select owner_id, source from public.pets where id = $1',
+      r => r[0]?.owner_id === J.adopter && r[0].source === 'owner', [jPet]);
+    await rows('the application is approved and its stage says so', ID.cavd,
+      'select status, review_stage, decided_by from public.applications where id = $1',
+      r => r[0]?.status === 'approved' && r[0].review_stage === 'approved' && r[0].decided_by === ID.cavd, [jApp]);
+    await rows('the listing closes on transfer', ID.cavd, 'select status from public.listings where id = $1', r => r[0]?.status === 'closed', [jListing]);
+    await rows('the other applicant is declined with a reason', J.rival,
+      'select status, decision_note from public.applications where id = $1',
+      r => r[0]?.status === 'rejected' && /adopted by another applicant/.test(r[0].decision_note), [rivalApp]);
+    await rows('the pet is marked Adopted, so it cannot be re-listed without a new review', ID.cavd,
+      'select availability from public.pet_adoption_checks where pet_id = $1', r => r[0]?.availability === 'adopted', [jPet]);
+    await rows('one permanent transfer record names both owners and CAVD', ID.cavd,
+      'select previous_owner_id, adopter_id, approved_by from public.adoption_records where application_id = $1',
+      r => r.length === 1 && r[0].previous_owner_id === J.owner && r[0].adopter_id === J.adopter && r[0].approved_by === ID.cavd, [jApp]);
+    await rows('the application history records each step and who took it', J.adopter,
+      'select new_stage, actor_id from public.application_events where application_id = $1 order by created_at',
+      r => r.length >= 3 && r[0].actor_id === J.adopter && r.at(-1).new_stage === 'approved' && r.at(-1).actor_id === ID.cavd, [jApp]);
+    await rows('the new owner sees the pet and its full visit history', J.adopter,
+      'select count(*)::int as n from public.visits where pet_id = $1', r => r[0]?.n >= 2, [jPet]);
+    await rows('the previous owner no longer sees the pet', J.owner, 'select id from public.pets where id = $1', r => r.length === 0, [jPet]);
+    await rows('the previous owner can still read the transfer record', J.owner,
+      'select id from public.adoption_records where pet_id = $1', r => r.length === 1, [jPet]);
+    await denied('a decided application cannot be transferred again', ID.cavd, transfer,
+      [jApp, 'owner_conversation', today, 'Journey Owner', 'Again'], 'already been decided');
+    await denied('the declined applicant cannot reapply to the closed listing', J.rival, apply,
+      [jListing, answersFor('Journey Rival', 'j-rival@demo.local'), 'explore'], 'no longer open');
+
+    // The new owner rehomes the pet later.
+    const relist = (await run(J.adopter, listingSql, [jPet, J.adopter]))[0].id;
+    ok('the new owner can ask to list the adopted pet');
+    await denied('an Adopted pet needs a fresh CAVD review before it is listed again', ID.cavd,
+      `update public.listings set status = 'approved', decided_at = now() where id = $1`, [relist], 'eligibility');
+    await run(ID.cavd, saveChecks, [jPet, 'available', 'current', 'cleared']);
+    await run(ID.cavd, `update public.listings set status = 'approved', decided_at = now() where id = $1`, [relist]);
+    ok('after a fresh review the pet can be listed again');
+    await rows('the previous owner can see the relisted pet and could adopt it back', J.owner,
+      'select listing_id from public.public_listings where listing_id = $1', r => r.length === 1, [relist]);
+
+    // CAVD closes a listing (not by adoption) while an application is still open.
+    const closeApp = (await run(J.rival, apply, [relist, answersFor('Journey Rival', 'j-rival@demo.local'), 'explore']))[0].id;
+    await run(ID.cavd, `update public.listings set status = 'closed', decision_note = 'Owner changed their mind', decided_at = now() where id = $1`, [relist]);
+    await rows('closing a listing declines its open applications with CAVD\u2019s reason', J.rival,
+      'select status, review_stage, decision_note, decided_by from public.applications where id = $1',
+      r => r[0]?.status === 'rejected' && r[0].review_stage === 'rejected' && r[0].decision_note === 'Closed by CAVD: Owner changed their mind'
+        && r[0].decided_by === ID.cavd, [closeApp]);
+    await rows('the applicant\u2019s history shows the decline and who made it', J.rival,
+      'select new_status, actor_id from public.application_events where application_id = $1 order by created_at desc limit 1',
+      r => r[0]?.new_status === 'rejected' && r[0].actor_id === ID.cavd, [closeApp]);
+
+    // A shelter pet goes straight from CAVD custody to an adopter.
+    const shelterPet = (await run(ID.cavd, `insert into public.pets(owner_id,created_by,source,registry_status,name,species,sex,size,birth_date,breed,color,markings,about,photo_url)
+      values(null,$1,'shelter','approved','Journey Shelter Cat','cat','female','small','2023-06-01','Puspin','Black','None','Quiet cat','https://example.test/s.jpg') returning id`, [ID.cavd]))[0].id;
+    await clearForAdoption(shelterPet);
+    const shelterListing = (await run(ID.cavd, `insert into public.listings(pet_id,listed_by,status,decided_at) values($1,$2,'approved',now()) returning id`, [shelterPet, ID.cavd]))[0].id;
+    const shelterApp = (await run(J.rival, apply, [shelterListing, answersFor('Journey Rival', 'j-rival@demo.local'), 'explore']))[0].id;
+    await run(ID.cavd, transfer, [shelterApp, 'cavd_visit', today, 'Journey Rival', 'Shelter release approved']);
+    await rows('a shelter pet goes to its adopter with no previous owner', ID.cavd,
+      'select p.owner_id, r.previous_owner_id from public.pets p join public.adoption_records r on r.pet_id = p.id where p.id = $1',
+      r => r[0]?.owner_id === J.rival && r[0].previous_owner_id === null, [shelterPet]);
+
+    // Account state at the moment of applying.
+    await run(ID.cavd, 'update public.profiles set is_active = false where id = $1', [J.limit]);
+    const openPet = (await run(ID.cavd, `insert into public.pets(owner_id,created_by,source,registry_status,name,species,sex,size,birth_date)
+      values(null,$1,'shelter','approved','Journey Open Dog','dog','female','medium','2023-01-01') returning id`, [ID.cavd]))[0].id;
+    await clearForAdoption(openPet);
+    const openListing = (await run(ID.cavd, `insert into public.listings(pet_id,listed_by,status,decided_at) values($1,$2,'approved',now()) returning id`, [openPet, ID.cavd]))[0].id;
+    await denied('a disabled account cannot apply', J.limit, apply, [openListing, answersFor('Journey Limit', 'j-limit@demo.local'), 'explore'], 'Only verified');
+    await run(ID.cavd, 'update public.profiles set is_active = true where id = $1', [J.limit]);
+
+    // Ten applications a day per adopter.
+    for (let i = 0; i < 10; i++) {
+      const p = (await client.query(`insert into public.pets(owner_id,created_by,source,registry_status,name,species,sex,size,birth_date)
+        values(null,$1,'shelter','approved',$2,'cat','male','small','2023-01-01') returning id`, [ID.cavd, 'Limit pet ' + i])).rows[0].id;
+      const l = (await client.query(`insert into public.listings(pet_id,listed_by,status) values($1,$2,'closed') returning id`, [p, ID.cavd])).rows[0].id;
+      await client.query(`insert into public.applications(listing_id,adopter_id,pet_name_snapshot) values($1,$2,$3)`, [l, J.limit, 'Limit pet ' + i]);
+    }
+    await denied('the eleventh application in a day is refused', J.limit, apply,
+      [openListing, answersFor('Journey Limit', 'j-limit@demo.local'), 'explore'], 'Application limit');
+
+    // Owner edits to a listed pet.
+    const editPet = (await run(J.owner, `insert into public.pets(owner_id,created_by,source,registry_status,name,species,sex,size,birth_date,breed,color,markings,about,photo_url)
+      values($1,$1,'owner','pending','Journey Puppy','dog','female','small','2025-01-01','Aspin','White','None','Playful','https://example.test/p.jpg') returning id`, [J.owner]))[0].id;
+    await run(ID.cavd, `update public.pets set registry_status = 'approved', decided_at = now() where id = $1`, [editPet]);
+    await clearForAdoption(editPet);
+    const editListing = (await run(J.owner, listingSql, [editPet, J.owner]))[0].id;
+    await run(ID.cavd, `update public.listings set status = 'approved', decided_at = now() where id = $1`, [editListing]);
+    await allowed('the owner can still correct the description of a listed pet', J.owner,
+      `update public.pets set about = 'Playful and house-trained' where id = $1`, [editPet]);
+    await denied('the owner cannot mark their own pet rabies-vaccinated', J.owner,
+      `update public.pets set rabies_vaccinated = false where id = $1`, [editPet], 'health flags');
+    await denied('the owner cannot change sterilisation once the registration is decided', J.owner,
+      `update public.pets set sterilized = false where id = $1`, [editPet], 'health flags');
+    const pendingPet = (await run(J.owner, `insert into public.pets(owner_id,created_by,source,registry_status,name,species,sex,size,birth_date)
+      values($1,$1,'owner','pending','Journey Kitten','cat','male','small','2025-06-01') returning id`, [J.owner]))[0].id;
+    await allowed('the owner can still correct sterilisation while the registration is pending', J.owner,
+      `update public.pets set sterilized = true where id = $1 returning id`, [pendingPet]);
   } finally {
     await client.end().catch(() => {});
     await pg.stop().catch(() => {});

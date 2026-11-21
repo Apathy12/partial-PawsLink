@@ -283,7 +283,7 @@ export function OfficeListings() {
     const { error } = await supabase.from('listings').update({
       status, decision_note: note, decided_at: new Date().toISOString()
     }).eq('id', l.id)
-    if (error) bad(explain(error)); else { ok(status === 'approved' ? 'Listing published.' : status === 'rejected' ? 'Listing rejected.' : 'Listing closed.'); void load() }
+    if (error) bad(explain(error)); else { ok(status === 'approved' ? 'Listing published.' : status === 'rejected' ? 'Listing rejected.' : 'Listing closed. Any open applications were declined.'); void load() }
   }
 
   return (
@@ -330,7 +330,7 @@ export function OfficeListings() {
                     <td><div className="table-pet"><div className="avatar"><Photo url={l.pet?.photo_url} name={l.pet?.name || 'Pet'} /></div>{l.pet?.name}</div></td>
                     <td>{l.pet ? sourceLabel(l.pet.source) : '—'}</td>
                     <td>{fmtDate(l.decided_at)}<div className="sub">{eligibility.report?.find(row => row.pet_id === l.pet_id)?.eligible ? 'Open for adoption' : 'Hidden — eligibility review needed'}</div></td>
-                    <td><button className="btn btn-sm btn-danger" type="button" onClick={() => void decide(l, 'closed')}>Close</button></td>
+                    <td><NoteAction label="Close" danger prompt="Reason for closing" hint="The owner and anyone who applied will see this. Open applications are declined." submit="Close listing" onSend={note => decide(l, 'closed', note)} /></td>
                   </tr>
                 ))}
               </tbody>
