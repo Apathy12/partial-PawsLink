@@ -3,6 +3,7 @@ import { preferenceAnswerRows } from '../src/lib/matching.ts'
 import {
   APPLICATION_SECTIONS, applicationActionLabel, applicationPath, fieldApplies, needsApplicationForm, normalizedAnswers, stageLabel, validateAnswers
 } from '../src/lib/adoption-application.ts'
+import { fmtDate, manilaDay } from '../src/lib/format.ts'
 
 const answers = Object.fromEntries(APPLICATION_SECTIONS.flatMap(section =>
   section.fields.map(field => [field.key, field.options?.[0] || 'Provided answer'])))
@@ -58,4 +59,8 @@ assert.equal(rows['Time available for daily care'], 'Very high')
 assert.equal(rows['Children in your home?'], 'Yes')
 assert.equal(rows['Pet ownership experience'], 'First-time owner')
 assert.ok(Object.values(rows).every(Boolean), 'every answer has a label')
+// Butuan is UTC+8: 11 p.m. UTC is already the next day there.
+assert.equal(manilaDay(new Date('2026-11-17T23:00:00Z')), '2026-11-18')
+assert.equal(fmtDate('2026-11-17T22:30:00.123+00:00'), '18 Nov 2026')
+assert.equal(fmtDate('2026-11-17'), '17 Nov 2026')
 console.log('Adoption application checks passed.')

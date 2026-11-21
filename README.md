@@ -9,28 +9,10 @@ Single responsive website. Mobile-first for owners and adopters (`/app`), deskto
 ## How to run locally
 
 1. Create a free project at [supabase.com](https://supabase.com).
-2. In the SQL editor, run the migrations **in order**:
-   - `supabase/migrations/0001_schema.sql`
-   - `supabase/migrations/0002_rls.sql`
-   - `supabase/migrations/0003_storage.sql`
-   - `supabase/migrations/0004_service_role_bootstrap.sql`
-   - `supabase/migrations/0005_identity_verification.sql`
-   - `supabase/migrations/0006_user_profile.sql`
-   - `supabase/migrations/0007_pet_health_records.sql`
-   - `supabase/migrations/0008_rejected_identity_cleanup.sql`
-   - `supabase/migrations/0009_owner_id_immediate_access.sql`
-   - `supabase/migrations/0010_cavd_account_auth.sql`
-   - `supabase/migrations/0011_adopter_matching.sql`
-   - `supabase/migrations/0012_adoption_application_review.sql`
-   - `supabase/migrations/0013_match_only_applications.sql`
-   - `supabase/migrations/0014_backend_security.sql`
-   - `supabase/migrations/0015_identity_status_privacy.sql`
-   - `supabase/migrations/0016_demo_cavd_password_only.sql` (temporary demo mode)
-   - `supabase/migrations/0017_direct_adoption_requests.sql`
-   - `supabase/migrations/0018_strict_adoption_rules.sql`
-   - `supabase/migrations/0019_required_adoption_forms.sql`
-   - `supabase/migrations/0020_cavd_vet_integration_and_adoption_tags.sql`
-   - `supabase/migrations/0019_required_adoption_forms.sql`
+2. Apply every file in `supabase/migrations` **in number order** (`0001` through the highest number, currently `0025`). Each file runs once.
+   - Preferred: `supabase link --project-ref <ref>` then `supabase db push`. The CLI records each file it applies, so none runs twice.
+   - Or paste each file into the SQL editor in order. Supabase won't record them, so keep track of which ones you ran.
+   - `0016_demo_cavd_password_only.sql` is a temporary demo mode. Skip it in production, or undo it with `supabase/maintenance/restore_cavd_mfa.sql`.
 3. Copy `.env.example` to `.env.local` and paste **Project Settings → API**:
    - `VITE_SUPABASE_URL`
    - `VITE_SUPABASE_ANON_KEY`

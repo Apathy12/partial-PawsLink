@@ -1,6 +1,6 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { CLEARANCE_LABELS } from './eligibility'
-import { fmtDate } from './format'
+import { fmtDate, manilaDay } from './format'
 import { explain, supabase } from './supabase'
 import type { Pet, Profile, Visit } from './types'
 import { Empty, Field, Notice, Pill, clearancePill } from '../ui'
@@ -42,7 +42,7 @@ export function VisitForm({ pet, profile, onSaved }: { pet: Pet; profile: Profil
   const [saved, setSaved] = useState(false)
   const [hasVaccine, setHasVaccine] = useState(false)
   const [visitType, setVisitType] = useState('checkup')
-  const [visitDate, setVisitDate] = useState(new Date().toISOString().slice(0, 10))
+  const [visitDate, setVisitDate] = useState(manilaDay())
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -106,7 +106,7 @@ export function VisitForm({ pet, profile, onSaved }: { pet: Pet; profile: Profil
     {error ? <Notice kind="bad">{error}</Notice> : null}
     {saved ? <Notice kind="ok">Visit added to this pet’s private medical record.</Notice> : null}
     <div className="grid grid-2">
-      <Field label="Visit date"><input type="date" name="visit_date" max={new Date().toISOString().slice(0, 10)} value={visitDate} onChange={e => setVisitDate(e.target.value)} required /></Field>
+      <Field label="Visit date"><input type="date" name="visit_date" max={manilaDay()} value={visitDate} onChange={e => setVisitDate(e.target.value)} required /></Field>
       <Field label="Visit type"><select name="visit_type" value={visitType} onChange={e => {
         setVisitType(e.target.value)
         if (e.target.value === 'vaccination') setHasVaccine(true)

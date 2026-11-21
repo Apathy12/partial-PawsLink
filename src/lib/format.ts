@@ -1,8 +1,16 @@
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
+// Butuan's calendar day (YYYY-MM-DD); toISOString() would give the UTC day, 8 hours behind.
+const MANILA_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' })
+export function manilaDay(at: Date | string = new Date()) {
+  return MANILA_DAY.format(typeof at === 'string' ? new Date(at) : at)
+}
+
 export function fmtDate(iso: string | null | undefined) {
   if (!iso) return '—'
-  const d = iso.slice(0, 10).split('-')
+  // Timestamps are stored in UTC; plain dates (YYYY-MM-DD) are already a calendar day.
+  const day = iso.length > 10 && !Number.isNaN(Date.parse(iso)) ? manilaDay(iso) : iso.slice(0, 10)
+  const d = day.split('-')
   if (d.length !== 3) return iso
   return `${Number(d[2])} ${MONTHS[Number(d[1]) - 1]} ${d[0]}`
 }

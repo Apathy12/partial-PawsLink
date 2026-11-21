@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { explain, supabase } from '../lib/supabase'
-import { fmtDate, sexLabel, sizeLabel, speciesLabel } from '../lib/format'
+import { fmtDate, sexLabel, sizeLabel, speciesLabel, manilaDay } from '../lib/format'
 import { detailsRequested, ownerAnswered } from '../lib/pet-registry'
 import type { AdoptionRecord, Application, ApplicationEvent, Listing, Pet, VerificationRequest, Visit } from '../lib/types'
 import { Empty, Notice, Pill } from '../ui'
@@ -117,8 +117,8 @@ async function userItems(me: string): Promise<InboxItem[]> {
 }
 
 async function officeItems(): Promise<InboxItem[]> {
-  const today = new Date().toISOString().slice(0, 10)
-  const soon = new Date(Date.now() + 30 * DAY).toISOString().slice(0, 10)
+  const today = manilaDay()
+  const soon = manilaDay(new Date(Date.now() + 30 * DAY))
   const [pets, listings, apps, ids, due] = await Promise.all([
     rows<Pet>(supabase.from('pets').select('*').eq('registry_status', 'pending').order('created_at', newest).limit(50)),
     rows<Listing>(supabase.from('listings').select('*').eq('status', 'pending').order('created_at', newest).limit(50)),

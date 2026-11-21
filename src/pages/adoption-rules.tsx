@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { ADOPTION_RULES, eligibilityReasons, eligibilitySetupMessage, type AdoptionChecks, type EligibilityReport } from '../lib/eligibility'
-import { capitalize, fmtDate } from '../lib/format'
+import { capitalize, fmtDate, manilaDay } from '../lib/format'
 import { CRITERION_LABELS, MATCH_CRITERIA, MATCH_WEIGHTS, validMatchWeights, type MatchWeights } from '../lib/matching'
 import { explain, supabase } from '../lib/supabase'
 import { useNames } from '../lib/staff'
@@ -23,7 +23,7 @@ export function PetEligibilityEditor({ pet, latestClearance, onSaved }: {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
-  const today = new Date().toISOString().slice(0, 10)
+  const today = manilaDay()
   const who = useNames([saved?.verified_by])
 
   useEffect(() => {

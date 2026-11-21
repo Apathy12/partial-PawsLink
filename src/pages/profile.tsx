@@ -1,7 +1,7 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
 import { useAuth } from '../lib/auth'
 import { accountDestination, needsProfileSetup } from '../lib/onboarding'
-import { appUrl } from '../lib/format'
+import { appUrl, manilaDay } from '../lib/format'
 import { explain, supabase } from '../lib/supabase'
 import { Field, Notice, PawMark } from '../ui'
 import { UserShell } from './user'
@@ -120,7 +120,7 @@ export function UserProfile() {
       setDetailsError('Enter your full name before saving.')
       return
     }
-    if (birthDate && birthDate > new Date().toISOString().slice(0, 10)) {
+    if (birthDate && birthDate > manilaDay()) {
       setDetailsError('Your birthday cannot be in the future.')
       return
     }
@@ -199,7 +199,7 @@ export function UserProfile() {
           <h2>Personal details</h2>
           <Field label="Full name"><input value={name} onChange={e => setName(e.target.value)} required /></Field>
           <div className="grid grid-2">
-            <Field label="Birthday"><input type="date" max={new Date().toISOString().slice(0, 10)} value={birthDate} onChange={e => setBirthDate(e.target.value)} /></Field>
+            <Field label="Birthday"><input type="date" max={manilaDay()} value={birthDate} onChange={e => setBirthDate(e.target.value)} /></Field>
             <Field label="Phone number"><input type="tel" value={contact} onChange={e => setContact(e.target.value)} autoComplete="tel" /></Field>
           </div>
           <Field label="Location" hint="Barangay and city are enough."><input value={location} onChange={e => setLocation(e.target.value)} autoComplete="address-level2" placeholder="e.g. Ampayon, Butuan City" /></Field>

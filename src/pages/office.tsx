@@ -11,7 +11,7 @@ import { detailsRequested, missingPetDetails, ownerAnswered, requestPetDetails }
 import { useEligibilityReport } from '../lib/use-eligibility-report'
 import { stageLabel } from '../lib/adoption-application'
 import { useNames } from '../lib/staff'
-import { capitalize, fmtDate, petLine, sourceLabel } from '../lib/format'
+import { capitalize, fmtDate, petLine, sourceLabel, manilaDay } from '../lib/format'
 import { fetchRegistryPage, REGISTRY_PAGE_SIZE } from '../lib/pet-registry'
 import type { AdoptionRecord, Application, Listing, Pet, Profile, Visit, VisitCorrection } from '../lib/types'
 import {
@@ -348,7 +348,7 @@ export function CavdTransferControl({ application, onDone, onError }: {
   onError: (message: string) => void
 }) {
   const [method, setMethod] = useState('')
-  const [validationDate, setValidationDate] = useState(new Date().toISOString().slice(0, 10))
+  const [validationDate, setValidationDate] = useState(manilaDay())
   const [validatedWith, setValidatedWith] = useState('')
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
@@ -378,7 +378,7 @@ export function CavdTransferControl({ application, onDone, onError }: {
         <option value="cavd_visit">CAVD visit</option>
       </select>
     </Field>
-    <Field label="Date validated"><input type="date" value={validationDate} max={new Date().toISOString().slice(0, 10)} onChange={e => setValidationDate(e.target.value)} required /></Field>
+    <Field label="Date validated"><input type="date" value={validationDate} max={manilaDay()} onChange={e => setValidationDate(e.target.value)} required /></Field>
     <Field label="Person contacted / present"><input value={validatedWith} onChange={e => setValidatedWith(e.target.value)} required placeholder="Owner, caretaker, or applicant" /></Field>
     <Field label="Outcome note"><textarea value={note} onChange={e => setNote(e.target.value)} required placeholder="What did CAVD confirm?" /></Field>
     <label className="check-row"><input type="checkbox" checked={sure} onChange={e => setSure(e.target.checked)} required />
@@ -797,7 +797,7 @@ export function OfficePet() {
               <Field label="Breed"><input name="breed" defaultValue={pet.breed || ''} /></Field>
               <Field label="Sex"><select name="sex" defaultValue={pet.sex}><option value="male">Male</option><option value="female">Female</option></select></Field>
               <Field label="Size"><select name="size" defaultValue={pet.size}><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select></Field>
-              <Field label="Birth date"><input type="date" name="birth_date" required max={new Date().toISOString().slice(0, 10)} defaultValue={pet.birth_date} /></Field>
+              <Field label="Birth date"><input type="date" name="birth_date" required max={manilaDay()} defaultValue={pet.birth_date} /></Field>
               <Field label="Current weight (kg)"><input type="number" name="weight_kg" min="0.01" max="500" step="0.01" defaultValue={pet.weight_kg ?? ''} /></Field>
               <Field label="Color"><input name="color" defaultValue={pet.color || ''} /></Field>
               <Field label="Markings"><input name="markings" defaultValue={pet.markings || ''} /></Field>

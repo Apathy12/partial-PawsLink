@@ -1,3 +1,4 @@
+import { manilaDay } from './format.ts'
 import type { Pet, Visit } from './types'
 
 export type AdoptionChecks = {
@@ -34,7 +35,7 @@ export const ADOPTION_RULES = [
 /** Preview only. The database repeats these rules for every application. */
 export function eligibilityReasons(pet: Pick<Pet, 'registry_status' | 'sterilized' | 'rabies_vaccinated' | 'rabies_vaccinated_on'>,
   checks: Partial<AdoptionChecks> | null, latestClearance: Visit['clearance_status'] | null | undefined,
-  today = new Date().toISOString().slice(0, 10)): string[] {
+  today = manilaDay()): string[] {
   const reasons: string[] = []
   if (pet.registry_status !== 'approved') reasons.push('Registration is not approved')
   if (checks?.availability !== 'available') reasons.push('Adoption availability is not Available')

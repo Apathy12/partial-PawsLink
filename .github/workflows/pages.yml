@@ -27,6 +27,16 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci
+      # A failing check stops the deploy, so a permission mistake never reaches the live site.
+      - run: npm run lint
+      - name: Tests
+        run: |
+          npm run test:onboarding
+          npm run test:ocr
+          npm run test:matching
+          npm run test:eligibility
+          npm run test:applications
+          npm run test:rls
       - name: Build project site
         run: npm run build:pages
         env:
