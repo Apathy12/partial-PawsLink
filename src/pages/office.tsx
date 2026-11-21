@@ -474,6 +474,8 @@ export function OfficeIntake() {
   const [busy, setBusy] = useState(false)
   const [alsoList, setAlsoList] = useState(true)
   const [rabies, setRabies] = useState(false)
+  // Set once the pet row exists, so pressing Save again retries only the listing instead of adding the pet twice.
+  const [savedPetId, setSavedPetId] = useState<string | null>(null)
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -481,40 +483,48 @@ export function OfficeIntake() {
     const f = new FormData(e.currentTarget)
     setBusy(true)
     try {
-      const file = f.get('photo') as File | null
-      let photo_url: string | null = null
-      if (file && file.size) photo_url = await uploadPetPhoto(profile.id, file)
-      const { data, error } = await supabase.from('pets').insert({
-        owner_id: null,
-        created_by: profile.id,
-        source: 'shelter',
-        registry_status: 'approved',
-        name: String(f.get('name') || '').trim(),
-        species: f.get('species'),
-        breed: String(f.get('breed') || '').trim() || null,
-        sex: f.get('sex'),
-        size: f.get('size'),
-        birth_date: f.get('birth_date'),
-        weight_kg: f.get('weight_kg') ? Number(f.get('weight_kg')) : null,
-        color: String(f.get('color') || '').trim() || null,
-        markings: String(f.get('markings') || '').trim() || null,
-        about: String(f.get('about') || '').trim() || null,
-        sterilized: f.get('sterilized') === 'on',
-        rabies_vaccinated: f.get('rabies') === 'on',
-        rabies_vaccinated_on: f.get('rabies') === 'on' ? (f.get('rabies_on') || null) : null,
-        photo_url,
-        decided_at: new Date().toISOString()
-      }).select('*').single()
-      if (error) throw error
+      let petId = savedPetId
+      if (!petId) {
+        const file = f.get('photo') as File | null
+        let photo_url: string | null = null
+        if (file && file.size) photo_url = await uploadPetPhoto(profile.id, file)
+        const { data, error } = await supabase.from('pets').insert({
+          owner_id: null,
+          created_by: profile.id,
+          source: 'shelter',
+          registry_status: 'approved',
+          name: String(f.get('name') || '').trim(),
+          species: f.get('species'),
+          breed: String(f.get('breed') || '').trim() || null,
+          sex: f.get('sex'),
+          size: f.get('size'),
+          birth_date: f.get('birth_date'),
+          weight_kg: f.get('weight_kg') ? Number(f.get('weight_kg')) : null,
+          color: String(f.get('color') || '').trim() || null,
+          markings: String(f.get('markings') || '').trim() || null,
+          about: String(f.get('about') || '').trim() || null,
+          sterilized: f.get('sterilized') === 'on',
+          rabies_vaccinated: f.get('rabies') === 'on',
+          rabies_vaccinated_on: f.get('rabies') === 'on' ? (f.get('rabies_on') || null) : null,
+          photo_url,
+          decided_at: new Date().toISOString()
+        }).select('*').single()
+        if (error) throw error
+        petId = data.id as string
+        setSavedPetId(petId)
+      }
       if (alsoList) {
         const { error: le } = await supabase.from('listings').insert({
-          pet_id: data.id, listed_by: profile.id, status: 'pending',
+          pet_id: petId, listed_by: profile.id, status: 'pending',
           notes: String(f.get('about') || '').trim() || null
         })
-        if (le) throw le
+        if (le) {
+          bad(`The pet was saved, but its listing request failed: ${explain(le)} Press Save again to retry only the listing.`)
+          return
+        }
       }
       ok(alsoList ? 'Intake recorded. Complete eligibility review before approving its listing.' : 'Intake recorded. The pet starts on Hold for adoption.')
-      nav('/office/pets/' + data.id)
+      nav('/office/pets/' + petId)
     } catch (err) {
       bad(explain(err as { message?: string }))
     } finally {
