@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { ADOPTION_RULES, eligibilityReasons, eligibilitySetupMessage, type AdoptionChecks, type EligibilityReport } from '../lib/eligibility'
@@ -7,7 +7,7 @@ import { CRITERION_LABELS, MATCH_CRITERIA, MATCH_WEIGHTS, validMatchWeights, typ
 import { explain, supabase } from '../lib/supabase'
 import { useNames } from '../lib/staff'
 import type { Pet, Visit } from '../lib/types'
-import { Empty, Field, Notice, PetCode, Photo, Pill, clearancePill } from '../ui'
+import { Empty, Field, Need, Notice, PetCode, Photo, Pill, UnsavedTag, clearancePill, useLeaveWarning } from '../ui'
 import { OfficeShell } from './office'
 
 const blankChecks = { availability: 'hold', vaccination_status: 'incomplete', vaccination_valid_until: '', behavioral_clearance: 'pending', notes: '' } as const
@@ -23,6 +23,10 @@ export function PetEligibilityEditor({ pet, latestClearance, onSaved }: {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
+  const [dirty, setDirty] = useState(false)
+  // Read inside the load effect: a reload after another section saves must not discard a draft being typed.
+  const dirtyRef = useRef(false)
+  useLeaveWarning(dirty)
   const today = manilaDay()
   const who = useNames([saved?.verified_by])
 
@@ -35,9 +39,10 @@ export function PetEligibilityEditor({ pet, latestClearance, onSaved }: {
       else {
         const row = data as AdoptionChecks | null
         setSaved(row)
-        setDraft(row ? { availability: row.availability, vaccination_status: row.vaccination_status,
+        if (!dirtyRef.current) setDraft(row ? { availability: row.availability, vaccination_status: row.vaccination_status,
           vaccination_valid_until: row.vaccination_valid_until || '', behavioral_clearance: row.behavioral_clearance, notes: row.notes } : { ...blankChecks })
-        setReady(true); setError(null); setConfirmed(false)
+        setReady(true); setError(null)
+        if (!dirtyRef.current) setConfirmed(false)
       }
       setLoading(false)
     })
@@ -45,7 +50,7 @@ export function PetEligibilityEditor({ pet, latestClearance, onSaved }: {
   }, [pet.id, pet.updated_at])
 
   function change<K extends keyof typeof draft>(key: K, value: typeof draft[K]) {
-    setDraft(previous => ({ ...previous, [key]: value })); setConfirmed(false)
+    setDraft(previous => ({ ...previous, [key]: value })); setConfirmed(false); setDirty(true); dirtyRef.current = true
   }
   const currentReasons = eligibilityReasons(pet, saved, latestClearance, today)
   const preview = eligibilityReasons(pet, { ...draft, verified_by: confirmed ? profile?.id : null,
@@ -62,28 +67,28 @@ export function PetEligibilityEditor({ pet, latestClearance, onSaved }: {
     })
     setBusy(false)
     if (saveError) setError(explain(saveError))
-    else { setSaved(data as AdoptionChecks); setConfirmed(false); onSaved('CAVD adoption eligibility review saved.'); }
+    else { setSaved(data as AdoptionChecks); setConfirmed(false); setDirty(false); dirtyRef.current = false; onSaved('CAVD adoption eligibility review saved.'); }
   }
 
   return <section className="card eligibility-editor" id="adoption-eligibility" aria-labelledby="pet-eligibility-title">
-    <h2 id="pet-eligibility-title">Adoption eligibility</h2>
-    <p className="sub">Every condition must pass before this pet is offered for adoption. <Link to="/office/adoption-rules">View adoption rules</Link>.</p>
+    <h2 id="pet-eligibility-title">Adoption eligibility <UnsavedTag show={dirty} /></h2>
+    <p className="sub">Every condition must pass before this pet is offered for adoption. <Need /> marks what must be recorded. <Link to="/office/adoption-rules">View adoption rules</Link>.</p>
     {loading ? <p role="status">Loading eligibility review…</p> : ready ? <p><Pill kind={currentReasons.length ? 'wait' : 'ok'}>{currentReasons.length ? 'Excluded' : 'Eligible'}</Pill> <span className="sub">Saved status · reviewed {fmtDate(saved?.verified_at)}{who(saved?.verified_by) ? ` by ${who(saved?.verified_by)}` : ''}</span></p> : null}
     {error ? <Notice kind="bad">{error}</Notice> : null}
     {!loading && ready ? <form onSubmit={event => void save(event)}>
-      <Field label="Adoption availability" hint="Adopted is set by an ownership transfer. A new review keeps earlier transfer records.">
+      <Field label="Adoption availability" need hint="Adopted is set by an ownership transfer. A new review keeps earlier transfer records.">
         <select value={draft.availability} onChange={event => change('availability', event.target.value as AdoptionChecks['availability'])}>
           {draft.availability === 'adopted' ? <option value="adopted" disabled>Adopted</option> : null}
           <option value="hold">Hold</option><option value="available">Available</option>
         </select>
       </Field>
-      <Field label="Vaccination status"><select value={draft.vaccination_status} onChange={event => change('vaccination_status', event.target.value as AdoptionChecks['vaccination_status'])}><option value="incomplete">Incomplete / not verified</option><option value="current">Current</option></select></Field>
-      <Field label="Vaccination valid through" hint="Use the date on the reviewed vaccination record. Public rabies flags must also be recorded."><input type="date" value={draft.vaccination_valid_until} required={draft.vaccination_status === 'current'} min={draft.vaccination_status === 'current' ? today : undefined} onChange={event => change('vaccination_valid_until', event.target.value)} /></Field>
-      <Field label="Behavioral clearance"><select value={draft.behavioral_clearance} onChange={event => change('behavioral_clearance', event.target.value as AdoptionChecks['behavioral_clearance'])}><option value="pending">Pending assessment</option><option value="not_cleared">Not cleared</option><option value="cleared">Cleared</option></select></Field>
+      <Field label="Vaccination status" need><select value={draft.vaccination_status} onChange={event => change('vaccination_status', event.target.value as AdoptionChecks['vaccination_status'])}><option value="incomplete">Incomplete / not verified</option><option value="current">Current</option></select></Field>
+      <Field label="Vaccination valid through" need hint="Use the date on the reviewed vaccination record. Public rabies flags must also be recorded."><input type="date" value={draft.vaccination_valid_until} required={draft.vaccination_status === 'current'} min={draft.vaccination_status === 'current' ? today : undefined} onChange={event => change('vaccination_valid_until', event.target.value)} /></Field>
+      <Field label="Behavioral clearance" need><select value={draft.behavioral_clearance} onChange={event => change('behavioral_clearance', event.target.value as AdoptionChecks['behavioral_clearance'])}><option value="pending">Pending assessment</option><option value="not_cleared">Not cleared</option><option value="cleared">Cleared</option></select></Field>
       <p className="sub">Spay / neuter: <strong>{pet.sterilized ? 'Completed' : 'Not recorded as completed'}</strong>. Update this in Public health flags. Health flag changes require a fresh eligibility review.</p>
       <p className="sub">Latest veterinary clearance: {clearancePill(latestClearance)} Set this on the pet’s veterinary visit.</p>
       <Field label="CAVD review notes"><textarea value={draft.notes} maxLength={3000} onChange={event => change('notes', event.target.value)} /></Field>
-      <label className="check-row"><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} required /><span>I reviewed these recorded conditions, including any incomplete conditions.</span></label>
+      <label className="check-row"><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} required /><span>I reviewed these recorded conditions, including any incomplete conditions.<Need /></span></label>
       <div className="eligibility-preview" aria-live="polite"><strong>Preview after saving: {preview.length ? 'Excluded' : 'Eligible'}</strong>{preview.length ? <ul>{preview.map(reason => <li key={reason}>{reason}</li>)}</ul> : <p>Every required condition passes. A CAVD-approved listing is still required.</p>}</div>
       <button className="btn btn-sm" type="submit" disabled={busy || !confirmed || draft.availability === 'adopted'}>{busy ? 'Saving review…' : 'Save eligibility review'}</button>
     </form> : null}

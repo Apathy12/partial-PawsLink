@@ -16,7 +16,7 @@ import { fetchRegistryPage, REGISTRY_PAGE_SIZE } from '../lib/pet-registry'
 import { PAGE_SIZE, usePagedRows } from '../lib/paging'
 import type { AdoptionRecord, Application, Listing, Pet, Profile, Visit, VisitCorrection } from '../lib/types'
 import {
-  DashboardWelcome, Empty, Field, NoteAction, Notice, Pagination, PetCode, Photo, Pill, Shell, ToastHost, appPill, discoveryPill,
+  DashboardWelcome, Empty, Field, Need, NoteAction, Notice, Pagination, UnsavedTag, useLeaveWarning, PetCode, Photo, Pill, Shell, ToastHost, appPill, discoveryPill,
   listingPill, registryPill, sourcePill, useToasts
 } from '../ui'
 
@@ -667,6 +667,10 @@ export function OfficePet() {
   const [transfers, setTransfers] = useState<AdoptionRecord[]>([])
   const [changes, setChanges] = useState<DetailChange[]>([])
   const [detailsBusy, setDetailsBusy] = useState(false)
+  // Each form keeps what was typed until it is saved, so saving one section never clears another.
+  const [detailsDirty, setDetailsDirty] = useState(false)
+  const [flagsDirty, setFlagsDirty] = useState(false)
+  useLeaveWarning(detailsDirty || flagsDirty)
   const who = useNames([pet?.decided_by, pet?.owner_id, ...changes.map(change => change.changed_by)])
 
   const load = useCallback(() => {
@@ -699,7 +703,7 @@ export function OfficePet() {
       rabies_vaccinated_on: f.get('rabies') === 'on' ? (f.get('rabies_on') || null) : null,
       sterilized: f.get('sterilized') === 'on'
     }).eq('id', pet.id)
-    if (error) bad(explain(error)); else { ok('Public health flags saved.'); load() }
+    if (error) bad(explain(error)); else { ok('Public health flags saved.'); setFlagsDirty(false); load() }
   }
 
   async function savePetDetails(e: FormEvent<HTMLFormElement>) {
@@ -723,6 +727,9 @@ export function OfficePet() {
       }).eq('id', pet.id).select('id').single()
       if (error || !data) throw error || new Error('Pet details were not updated.')
       ok('Pet details updated. The change is recorded in the pet’s history.')
+      const photo = e.currentTarget.elements.namedItem('photo') as HTMLInputElement | null
+      if (photo) photo.value = ''
+      setDetailsDirty(false)
       load()
     } catch (cause) {
       bad(explain(cause as { message?: string; code?: string }))
@@ -801,8 +808,8 @@ export function OfficePet() {
               </div>)}
             </li>)}</ul>
           </div> : null}
-          <form className="card pet-details-form" key={pet.id + pet.updated_at} onSubmit={savePetDetails}>
-            <h2>Edit pet details</h2>
+          <form className="card pet-details-form" key={pet.id} onSubmit={savePetDetails} onChange={() => setDetailsDirty(true)}>
+            <h2>Edit pet details <UnsavedTag show={detailsDirty} /></h2>
             <div className="grid pet-details-grid">
               <Field label="Name"><input name="name" required defaultValue={pet.name} /></Field>
               <Field label="Species"><select name="species" defaultValue={pet.species}><option value="dog">Dog</option><option value="cat">Cat</option><option value="other">Other</option></select></Field>
@@ -841,14 +848,15 @@ export function OfficePet() {
               <dt>Rabies</dt><dd>{pet.rabies_vaccinated ? `Vaccinated ${fmtDate(pet.rabies_vaccinated_on)}` : 'Not recorded'}</dd>
             </dl>
           </div>
-          <form className="card" onSubmit={saveFlags}>
-            <h2>Public health flags</h2>
+          <form className="card" key={pet.id} onSubmit={saveFlags} onChange={() => setFlagsDirty(true)}>
+            <h2>Public health flags <UnsavedTag show={flagsDirty} /></h2>
+            <p className="sub"><Need /> Needed before this pet can be listed for adoption. Changing these resets the eligibility review.</p>
             <label className="field" style={{ fontWeight: 400 }}>
-              <input type="checkbox" name="rabies" defaultChecked={pet.rabies_vaccinated} /> Rabies vaccinated
+              <input type="checkbox" name="rabies" defaultChecked={pet.rabies_vaccinated} /> Rabies vaccinated<Need />
             </label>
-            <Field label="Rabies date"><input type="date" name="rabies_on" defaultValue={pet.rabies_vaccinated_on || ''} /></Field>
+            <Field label="Rabies date" need><input type="date" name="rabies_on" defaultValue={pet.rabies_vaccinated_on || ''} /></Field>
             <label className="field" style={{ fontWeight: 400 }}>
-              <input type="checkbox" name="sterilized" defaultChecked={pet.sterilized} /> Sterilized
+              <input type="checkbox" name="sterilized" defaultChecked={pet.sterilized} /> Sterilized<Need />
             </label>
             <button className="btn btn-outline" type="submit">Save flags</button>
           </form>

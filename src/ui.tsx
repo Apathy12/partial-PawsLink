@@ -1,4 +1,4 @@
-import { useState, type InputHTMLAttributes, type ReactNode } from 'react'
+import { useEffect, useState, type InputHTMLAttributes, type ReactNode } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { CLEARANCE_LABELS } from './lib/eligibility'
 import type { Application, Pet, PublicListing, Visit } from './lib/types'
@@ -78,14 +78,49 @@ export function sourcePill(source: string) {
   return source === 'shelter' ? <Pill kind="shelter">CAVD shelter</Pill> : <Pill kind="owner">Privately owned</Pill>
 }
 
-export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+export function Field({ label, hint, need = false, children }: { label: string; hint?: string; need?: boolean; children: ReactNode }) {
   return (
     <label className="field">
-      <span className="lbl">{label}</span>
+      <span className="lbl">{label}{need ? <Need /> : null}</span>
       {children}
       {hint ? <span className="hint">{hint}</span> : null}
     </label>
   )
+}
+
+/** Red asterisk: CAVD must record this before the pet can be listed for adoption. */
+export function Need() {
+  return <span className="need" title="Needed before adoption listing"><span aria-hidden="true">*</span><span className="sr-only"> (needed for adoption listing)</span></span>
+}
+
+export function UnsavedTag({ show }: { show: boolean }) {
+  return show ? <span className="unsaved-tag" role="status">Unsaved changes</span> : null
+}
+
+// One page-wide guard, however many sections have unsaved edits.
+let unsavedSections = 0
+function confirmLeave(event: MouseEvent) {
+  const link = (event.target as Element | null)?.closest?.('a[href]')
+  if (!link || event.defaultPrevented || link.getAttribute('target') === '_blank') return
+  if (!window.confirm('You have unsaved changes on this page. Leave without saving?')) { event.preventDefault(); event.stopPropagation() }
+}
+function warnUnload(event: BeforeUnloadEvent) { event.preventDefault() }
+
+/** While `dirty`, warns before following a link, reloading or closing the tab. */
+export function useLeaveWarning(dirty: boolean) {
+  useEffect(() => {
+    if (!dirty) return
+    if (unsavedSections++ === 0) {
+      document.addEventListener('click', confirmLeave, true)
+      window.addEventListener('beforeunload', warnUnload)
+    }
+    return () => {
+      if (--unsavedSections === 0) {
+        document.removeEventListener('click', confirmLeave, true)
+        window.removeEventListener('beforeunload', warnUnload)
+      }
+    }
+  }, [dirty])
 }
 
 // A button that opens a short form in place, for actions that need a written note.

@@ -3,7 +3,7 @@ import { CLEARANCE_LABELS } from './eligibility'
 import { fmtDate, manilaDay } from './format'
 import { explain, supabase } from './supabase'
 import type { Pet, Profile, Visit } from './types'
-import { Empty, Field, Notice, Pill, clearancePill } from '../ui'
+import { Empty, Field, Notice, Pill, UnsavedTag, clearancePill, useLeaveWarning } from '../ui'
 
 const CAVD_CLINIC = 'CAVD Veterinary Clinic'
 
@@ -43,6 +43,8 @@ export function VisitForm({ pet, profile, onSaved }: { pet: Pet; profile: Profil
   const [hasVaccine, setHasVaccine] = useState(false)
   const [visitType, setVisitType] = useState('checkup')
   const [visitDate, setVisitDate] = useState(manilaDay())
+  const [dirty, setDirty] = useState(false)
+  useLeaveWarning(dirty)
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -89,6 +91,7 @@ export function VisitForm({ pet, profile, onSaved }: { pet: Pet; profile: Profil
       setHasVaccine(false)
       setVisitType('checkup')
       form.reset()
+      setDirty(false)
       onSaved()
     } catch (cause) {
       if (evidence_path) {
@@ -100,8 +103,8 @@ export function VisitForm({ pet, profile, onSaved }: { pet: Pet; profile: Profil
     }
   }
 
-  return <form className="form-panel visit-form card" onSubmit={submit}>
-    <h2>Add a veterinary visit</h2>
+  return <form className="form-panel visit-form card" onSubmit={submit} onChange={() => { setDirty(true); setSaved(false) }}>
+    <h2>Add a veterinary visit <UnsavedTag show={dirty} /></h2>
     <p className="sub">Saved visits are locked. Corrections need an audit note.</p>
     {error ? <Notice kind="bad">{error}</Notice> : null}
     {saved ? <Notice kind="ok">Visit added to this pet’s private medical record.</Notice> : null}
@@ -120,7 +123,7 @@ export function VisitForm({ pet, profile, onSaved }: { pet: Pet; profile: Profil
       <Field label="Reason for visit"><input name="reason" required placeholder="What brought the pet to the clinic?" /></Field>
       <Field label="Visit summary"><textarea name="summary" required placeholder="Short overview for the pet’s timeline" /></Field>
     </div>
-    <Field label="Adoption clearance" hint="Only Cleared pets can be listed for adoption and matched.">
+    <Field label="Adoption clearance" need hint="The latest visit must be Cleared before the pet can be listed for adoption and matched.">
       <select name="clearance_status" defaultValue="pending" required>
         {Object.entries(CLEARANCE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
       </select>

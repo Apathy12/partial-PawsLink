@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useAuth } from '../lib/auth'
 import { explain, supabase } from '../lib/supabase'
 import type { PetMatchTraits } from '../lib/types'
-import { Field, Notice } from '../ui'
+import { Field, Need, Notice, UnsavedTag, useLeaveWarning } from '../ui'
 
 const ratings = [1, 2, 3, 4, 5]
 
@@ -19,6 +19,8 @@ export function MatchTraitsEditor({ petId, onSaved }: { petId: string; onSaved: 
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [dirty, setDirty] = useState(false)
+  useLeaveWarning(dirty)
 
   useEffect(() => {
     let current = true
@@ -51,15 +53,15 @@ export function MatchTraitsEditor({ petId, onSaved }: { petId: string; onSaved: 
     }, { onConflict: 'pet_id' }).select('*').single()
     setBusy(false)
     if (saveError) setError(explain(saveError))
-    else { setTraits(data as PetMatchTraits); onSaved('Matching traits saved for adopters.') }
+    else { setTraits(data as PetMatchTraits); setDirty(false); onSaved('Matching traits saved for adopters.') }
   }
 
   return <div className="card match-traits-card">
-    <h2>Adopter matching traits</h2>
-    <p className="sub">Record observed behavior and care needs. A pet needs these traits to receive a match score.</p>
+    <h2>Adopter matching traits<Need /> <UnsavedTag show={dirty} /></h2>
+    <p className="sub">Record observed behavior and care needs. Adopters can apply only after these traits are saved, and they set the pet’s match score.</p>
     {loading ? <p role="status">Loading traits…</p> : null}
     {error ? <Notice kind="bad">{error}</Notice> : null}
-    {!loading ? <form key={traits?.updated_at || 'new'} onSubmit={event => void save(event)}>
+    {!loading ? <form key={traits?.updated_at || 'new'} onSubmit={event => void save(event)} onChange={() => setDirty(true)}>
       <div className="match-question-grid">
         <Rating name="activity_level" label="Activity level · 1 low, 5 high" value={traits?.activity_level} />
         <Field label="Temperament"><select name="temperament" defaultValue={traits?.temperament || ''} required>
